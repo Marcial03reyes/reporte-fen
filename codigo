@@ -66,48 +66,140 @@ SECCIONES = {
 }
 
 
-def leer_datos(ruta):
-    d = {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [],
-         "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
-         "conf": [], "sedes": "", "colab": "", "pie": []}
+def _vacio():
+    return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [],
+            "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
+            "conf": [], "sedes": "", "colab": "", "pie": []}
+
+
+def _es_seccion(linea):
+    m = re.match(r"^\[(.+)\]$", linea.strip())
+    return m.group(1).strip().upper() if m else None
+
+
+def _leer_estructurado(lineas, d):
+    """Formato con secciones entre corchetes: [LLUVIAS REPORTADAS], [CONFIRMACIONES], etc."""
     actual = None
-    with open(ruta, encoding="utf-8-sig") as f:
-        for raw in f:
-            linea = raw.strip()
-            if not linea or linea.startswith("#"):
-                continue
-            m = re.match(r"^\[(.+)\]$", linea)
-            if m:
-                actual = SECCIONES.get(m.group(1).strip().upper())
-                if actual is None:
-                    sys.exit(f"Sección desconocida en el archivo de datos: [{m.group(1)}]")
-                continue
-            linea = re.sub(r"^[•\-\*·–]\s*", "", linea)
-            clave, _, valor = linea.partition(":")
-            k = clave.strip().upper()
+    for raw in lineas:
+        linea = raw.strip()
+        if not linea or linea.startswith("#"):
+            continue
+        sec = _es_seccion(linea)
+        if sec:
+            actual = SECCIONES.get(sec)
             if actual is None:
-                if k in ("NUMERO", "NÚMERO"):
-                    d["numero"] = valor.strip()
-                elif k == "FECHA":
-                    d["fecha"] = valor.strip()
-                elif k == "HORARIO":
-                    d["horario"] = valor.strip()
-            elif actual in ("p1", "p2") and k in ("TITULO", "TÍTULO"):
-                d[actual + "_titulo"] = valor.strip()
-            elif actual == "nota":
-                d["nota"] = (d["nota"] + " " + linea).strip()
-            elif actual == "conf":
-                d["conf"].append(valor.strip() if _ else linea)
-            elif actual == "impacto":
-                if k == "SEDES":
-                    d["sedes"] = valor.strip()
-                elif k == "COLABORADORES":
-                    d["colab"] = valor.strip()
-            elif actual == "pie":
-                d["pie"].append(linea)
-            else:
-                d[actual].append(linea)
+                sys.exit(f"Sección desconocida en el archivo de datos: [{sec}]")
+            continue
+        linea = re.sub(r"^[•\-\*·–▪️\s]+", "", linea)
+        clave, sep, valor = linea.partition(":")
+        k = clave.strip().upper()
+        if k in ("NUMERO", "NÚMERO") and actual in (None, "conf", "impacto"):
+            d["numero"] = valor.strip()
+        elif actual is None:
+            if k == "FECHA":
+                d["fecha"] = valor.strip()
+            elif k == "HORARIO":
+                d["horario"] = valor.strip()
+        elif actual in ("p1", "p2") and k in ("TITULO", "TÍTULO"):
+            d[actual + "_titulo"] = valor.strip()
+        elif actual == "nota":
+            d["nota"] = (d["nota"] + " " + linea).strip()
+        elif actual == "conf":
+            d["conf"].append(valor.strip() if sep else linea)
+        elif actual == "impacto":
+            if k == "SEDES":
+                d["sedes"] = valor.strip()
+            elif k == "COLABORADORES":
+                d["colab"] = valor.strip()
+        elif actual == "pie":
+            d["pie"].append(linea)
+        else:
+            d[actual].append(linea)
     return d
+
+
+def _limpiar(linea):
+    """Quita emojis, viñetas y caracteres invisibles del inicio de una línea de WhatsApp."""
+    linea = linea.replace("​", "").replace("️", "").strip()
+    linea = re.sub(r"^[^\wÁÉÍÓÚÑáéíóúñ¿¡(]+", "", linea)
+    return linea.replace("*", "").replace("_", " ").strip()
+
+
+def _etiqueta_bonita(linea):
+    """'SIERRA: Se prevén...' -> 'Sierra: Se prevén...'"""
+    etq, sep, resto = linea.partition(":")
+    if sep and etq.isupper() and len(etq) <= 40:
+        return etq.strip().capitalize() + ": " + resto.strip()
+    return linea
+
+
+def _leer_whatsapp(lineas, d):
+    """Mensaje de WhatsApp pegado tal cual (con emojis y viñetas ▪️)."""
+    actual = None
+    for raw in lineas:
+        if raw.strip().startswith("#"):
+            continue
+        linea = _limpiar(raw)
+        if not linea:
+            continue
+        low = linea.lower()
+        k, sep, valor = linea.partition(":")
+        kl = k.strip().lower()
+
+        # Datos de cabecera
+        if kl in ("numero", "número", "n°", "nro"):
+            d["numero"] = valor.strip()
+            continue
+        if kl == "fecha":
+            d["fecha"] = valor.strip()
+            continue
+        if kl in ("corte", "horario", "hora"):
+            v = valor.strip() if kl != "corte" else linea.strip()
+            d["horario"] = v
+            continue
+        if "reporte fenomenol" in low:
+            continue
+
+        # Títulos de sección
+        sin_dos_puntos = linea.rstrip(":").strip().lower()
+        if sin_dos_puntos.startswith("lluvias reportadas"):
+            actual = "lluvias"
+            continue
+        if sin_dos_puntos.startswith(("crecida de r", "ríos", "rios", "quebradas", "huaicos", "deslizamientos")) \
+                and (linea.endswith(":") or len(sin_dos_puntos) < 40):
+            actual = "rios"
+            continue
+        if sin_dos_puntos.startswith(("vías restringidas", "vias restringidas")):
+            actual = "vias"
+            continue
+        if low.startswith(("pronóstico", "pronostico")):
+            actual = "p1" if not d["p1"] else "p2"
+            titulo = re.sub(r"^pron[oó]stico\s*[–\-:]*\s*", "", linea, flags=re.I).rstrip(":").strip()
+            d[actual + "_titulo"] = titulo.upper() if titulo else "PRONÓSTICO"
+            continue
+        if low.startswith("se mantiene el monitoreo"):
+            d["nota"] = linea
+            actual = None
+            continue
+
+        if actual:
+            d[actual].append(_etiqueta_bonita(linea))
+    return d
+
+
+def leer_datos(ruta):
+    with open(ruta, encoding="utf-8-sig") as f:
+        lineas = f.read().splitlines()
+    d = _vacio()
+    secciones = [_es_seccion(l) for l in lineas]
+    clima = {"LLUVIAS REPORTADAS", "VIAS RESTRINGIDAS", "VÍAS RESTRINGIDAS", "RIOS Y OTRAS AFECTACIONES",
+             "RÍOS Y OTRAS AFECTACIONES", "PRONOSTICO 1", "PRONÓSTICO 1"}
+    if any(s in clima for s in secciones if s):
+        return _leer_estructurado(lineas, d)
+    # Mensaje de WhatsApp arriba + datos de Pacífico entre corchetes abajo
+    corte = next((i for i, s in enumerate(secciones) if s), len(lineas))
+    _leer_whatsapp(lineas[:corte], d)
+    return _leer_estructurado(lineas[corte:], d)
 
 
 # ================================================================ 2. Medir texto
@@ -152,7 +244,7 @@ def contar_lineas(etiqueta, texto, size_pt, ancho_disp_pt):
 
 
 def separar(linea):
-    m = re.match(r"^([^:]{1,45}):\s*(.*)$", linea)
+    m = re.match(r"^([^:]{1,60}):\s*(.*)$", linea)
     return (m.group(1).strip(), m.group(2).strip()) if m else ("", linea)
 
 
@@ -352,10 +444,63 @@ def construir(d, salida_pptx, borrador=False):
         texto(slide, 6.55, 0.5, 2.6, 0.45, "BORRADOR · SIN CONFIRMAR", 11, WHITE, True,
               PP_ALIGN.CENTER, MSO_ANCHOR.MIDDLE)
 
-    # Tarjetas
+    # Contenido de cada columna
+    secs = [("LLUVIAS REPORTADAS", _lluvia, C_TEAL, d["lluvias"]),
+            ("VÍAS RESTRINGIDAS", _barrera, C_PINK, d["vias"]),
+            ("RÍOS, QUEBRADAS Y OTRAS AFECTACIONES", _rio, C_TEAL, d["rios"])]
+    secs = [(t, ic, col, items or ["Sin reportes."]) for t, ic, col, items in secs]
+    bloques = [(d["p1_titulo"] or "PRONÓSTICO", NAVY, d["p1"] or ["Sin pronóstico."])]
+    if d["p2"]:
+        bloques.append((d["p2_titulo"] or "NOCHE Y MADRUGADA", TEAL, d["p2"]))
+
     TOP, ALTO = 1.64, 5.28
-    LX, LW = 0.5, 7.79
-    RX, RW = 8.49, 4.36
+    y0, y1 = TOP + 0.62, 5.62          # zona de listas, columna izquierda
+    ry0, ry1 = TOP + 0.66, 6.22        # zona de listas, columna derecha
+    MIN_FS = 8.0
+
+    def alto_tit(t, ancho, s=14):
+        return contar_lineas("", t.upper(), s, ancho * 72 * 0.97) * s * 1.2 / 72 + 0.08
+
+    def fs_izq(LW, y1):
+        lw = LW - 0.62 - 0.28
+        fs = 12.0
+        need = lambda f: sum(0.28 + alto_lista(it, f, lw) + 0.12 for *_, it in secs)
+        while fs > MIN_FS and need(fs) > y1 - y0:
+            fs -= 0.5
+        return fs, need(fs) <= y1 - y0
+
+    def fs_der(RW):
+        rw = RW - 0.56
+        fs = 12.0
+        need = lambda f: sum(alto_tit(t, rw) + alto_lista(it, f, rw) + 0.22 for t, _, it in bloques)
+        while fs > MIN_FS and need(fs) > ry1 - ry0:
+            fs -= 0.5
+        return fs, need(fs) <= ry1 - ry0
+
+    # Elegir el reparto de ancho entre columnas que deje la letra más grande en ambas.
+    # Si el día trae mucho texto, el bloque de impacto pasa a una sola fila (modo compacto).
+    LX, GAP, ANCHO_TOTAL = 0.5, 0.2, 12.35
+
+    def elegir(y1):
+        mejor = None
+        for LW in (7.79, 8.2, 8.6, 9.0, 7.4, 7.0, 6.6, 6.2):
+            RW = ANCHO_TOTAL - LW - GAP
+            (a, ok_a), (b, ok_b) = fs_izq(LW, y1), fs_der(RW)
+            clave = (ok_a and ok_b, min(a, b), -abs(LW - 7.79))
+            if mejor is None or clave > mejor[0]:
+                mejor = (clave, LW, RW, a, b)
+        return mejor
+
+    compacto = False
+    mejor = elegir(y1)
+    if not (mejor[0][0] and mejor[0][1] >= 10):
+        alt = elegir(6.30)
+        if alt[0][:2] > mejor[0][:2]:
+            mejor, compacto, y1 = alt, True, 6.30
+    (cabe, _, _), LW, RW, fs, fs2 = mejor
+    RX = LX + LW + GAP
+
+    # Tarjetas
     for x, w, titulo, nom in ((LX, LW, "ESTATUS DEL DÍA", "Tarjeta estatus"),
                               (RX, RW, "PRONÓSTICO DE LLUVIAS", "Tarjeta pronostico")):
         c = caja(slide, x, TOP, w, ALTO, WHITE, LINE, MSO_SHAPE.ROUNDED_RECTANGLE, nom)
@@ -367,72 +512,76 @@ def construir(d, salida_pptx, borrador=False):
         texto(slide, x + 0.28, TOP, w - 0.4, 0.52, titulo, 17, WHITE, True, anchor=MSO_ANCHOR.MIDDLE)
 
     # --- Columna izquierda: estatus del día
-    secs = [("LLUVIAS REPORTADAS", _lluvia, C_TEAL, d["lluvias"]),
-            ("VÍAS RESTRINGIDAS", _barrera, C_PINK, d["vias"]),
-            ("RÍOS, QUEBRADAS Y OTRAS AFECTACIONES", _rio, C_TEAL, d["rios"])]
-    secs = [(t, ic, col, items or ["Sin reportes."]) for t, ic, col, items in secs]
-    y0, y1 = TOP + 0.62, 5.62
     lista_x, lista_w = LX + 0.62, LW - 0.62 - 0.28
-    fs = 12.0
-    while fs > 8.5:
-        total = sum(0.30 + alto_lista(items, fs, lista_w) + 0.14 for *_, items in secs)
-        if total <= y1 - y0:
-            break
-        fs -= 0.5
     y = y0
     for i, (titulo, ic, col, items) in enumerate(secs):
         texto(slide, LX + 0.28, y, LW - 0.56, 0.26, titulo, 13, NAVY, True)
         h = alto_lista(items, fs, lista_w)
-        icono(slide, _icono(ic, col), LX + 0.26, y + 0.30, 0.27)
-        vinetas(slide, lista_x, y + 0.31, lista_w, h + 0.02, items, fs, "Lista " + titulo.lower())
-        y += 0.30 + h + 0.14
+        icono(slide, _icono(ic, col), LX + 0.26, y + 0.29, 0.27)
+        vinetas(slide, lista_x, y + 0.29, lista_w, h + 0.02, items, fs, "Lista " + titulo.lower())
+        y += 0.28 + h + 0.12
         if i < len(secs) - 1:
             linea_h(slide, LX + 0.28, LX + LW - 0.28, y - 0.07)
 
     # Impacto Pacífico
-    pill = caja(slide, LX + 0.25, 5.70, LW - 0.5, 0.42, PILL, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Impacto titulo")
-    pill.adjustments[0] = 0.5
-    texto(slide, LX + 0.42, 5.70, LW - 0.8, 0.42, "IMPACTO EN PACÍFICO SEGUROS", 14, TEAL, True,
-          anchor=MSO_ANCHOR.MIDDLE)
-    for j, (titulo, ic, col, valor) in enumerate((("SEDES", _edificio, C_TEAL, d["sedes"]),
-                                                  ("COLABORADORES", _personas, C_PINK, d["colab"]))):
-        cx = LX + 0.28 + j * 3.75
-        texto(slide, cx, 6.20, 3.4, 0.25, titulo, 13, NAVY, True)
-        icono(slide, _icono(ic, col), cx, 6.50, 0.32)
-        v = valor or "Sin afectación reportada."
-        afectado = not v.lower().startswith("sin afectación") and not v.lower().startswith("sin afectacion")
-        vs = 11 if len(v) < 90 else 9.5
-        texto(slide, cx + 0.42, 6.50, 3.0, 0.40, v, vs, RED if afectado else NAVY, afectado,
-              anchor=MSO_ANCHOR.MIDDLE, nombre="Impacto " + titulo.lower())
+    impactos = (("SEDES", "Sedes", _edificio, C_TEAL, d["sedes"]),
+                ("COLABORADORES", "Colaboradores", _personas, C_PINK, d["colab"]))
+
+    def es_afectado(v):
+        return not v.lower().startswith(("sin afectación", "sin afectacion"))
+
+    if not compacto:
+        pill = caja(slide, LX + 0.25, 5.70, LW - 0.5, 0.42, PILL, None, MSO_SHAPE.ROUNDED_RECTANGLE,
+                    "Impacto titulo")
+        pill.adjustments[0] = 0.5
+        texto(slide, LX + 0.42, 5.70, LW - 0.8, 0.42, "IMPACTO EN PACÍFICO SEGUROS", 14, TEAL, True,
+              anchor=MSO_ANCHOR.MIDDLE)
+        col_w = (LW - 0.56) / 2
+        for j, (titulo, _, ic, col, valor) in enumerate(impactos):
+            cx = LX + 0.28 + j * col_w
+            texto(slide, cx, 6.20, col_w - 0.2, 0.25, titulo, 13, NAVY, True)
+            icono(slide, _icono(ic, col), cx, 6.50, 0.32)
+            v = valor or "Sin afectación reportada."
+            af = es_afectado(v)
+            texto(slide, cx + 0.42, 6.46, col_w - 0.6, 0.44, v, 11 if len(v) < 70 else 9.5,
+                  RED if af else NAVY, af, anchor=MSO_ANCHOR.MIDDLE, nombre="Impacto " + titulo.lower())
+    else:
+        linea_h(slide, LX + 0.28, LX + LW - 0.28, 6.33)
+        pw = 2.55
+        pill = caja(slide, LX + 0.25, 6.42, pw, 0.40, PILL, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Impacto titulo")
+        pill.adjustments[0] = 0.5
+        texto(slide, LX + 0.25, 6.42, pw, 0.40, "IMPACTO EN PACÍFICO", 12, TEAL, True, PP_ALIGN.CENTER,
+              MSO_ANCHOR.MIDDLE)
+        resto = LW - 0.56 - pw - 0.1
+        col_w = resto / 2
+        for j, (titulo, etq, ic, col, valor) in enumerate(impactos):
+            cx = LX + 0.28 + pw + 0.1 + j * col_w
+            icono(slide, _icono(ic, col), cx, 6.46, 0.30)
+            v = valor or "Sin afectación reportada."
+            af = es_afectado(v)
+            texto(slide, cx + 0.38, 6.36, col_w - 0.45, 0.54,
+                  [[(etq + ": ", True, NAVY), (v, af, RED if af else NAVY)]],
+                  10 if len(v) < 60 else 8.5, anchor=MSO_ANCHOR.MIDDLE, nombre="Impacto " + titulo.lower())
 
     # --- Columna derecha: pronóstico
-    bloques = [(d["p1_titulo"] or "HOY", NAVY, d["p1"] or ["Sin pronóstico."]),
-               (d["p2_titulo"] or "NOCHE Y MADRUGADA", TEAL, d["p2"] or ["Sin pronóstico."])]
-    ry0, ry1 = TOP + 0.66, 6.28
     rl_x, rl_w = RX + 0.28, RW - 0.56
-    fs2 = 12.0
-
-    def alto_tit(t, s=14):
-        return contar_lineas("", t.upper(), s, rl_w * 72 * 0.97) * s * 1.2 / 72 + 0.08
-
-    while fs2 > 8.5:
-        total = sum(alto_tit(t) + alto_lista(items, fs2, rl_w) + 0.22 for t, _, items in bloques)
-        if total <= ry1 - ry0:
-            break
-        fs2 -= 0.5
     y = ry0
     for i, (t, col, items) in enumerate(bloques):
-        ht = alto_tit(t)
+        ht = alto_tit(t, rl_w)
         texto(slide, rl_x, y, rl_w, ht, t.upper(), 14, col, True)
         h = alto_lista(items, fs2, rl_w)
         vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2, f"Pronostico {i + 1}")
         y += ht + h + 0.22
-        if i == 0:
+        if i < len(bloques) - 1:
             linea_h(slide, RX + 0.28, RX + RW - 0.28, y - 0.11)
-    linea_h(slide, RX + 0.28, RX + RW - 0.28, 6.36)
+    linea_h(slide, RX + 0.28, RX + RW - 0.28, 6.32)
     icono(slide, _icono(_radar, C_TEAL), RX + 0.30, 6.45, 0.32)
-    texto(slide, RX + 0.75, 6.45, RW - 1.0, 0.32, d["nota"] or "Se mantiene el monitoreo.", 11, NAVY, True,
+    nota = d["nota"] or "Se mantiene el monitoreo."
+    texto(slide, RX + 0.72, 6.39, RW - 0.98, 0.48, nota, 11 if len(nota) < 45 else (9.5 if len(nota) < 65 else 9), NAVY, True,
           anchor=MSO_ANCHOR.MIDDLE)
+    if not cabe:
+        print("  Aviso: hay mucho texto; revisa en el PPT que nada quede cortado.")
+
 
     # Pie
     pie = caja(slide, 0, 7.06, 13.333, 0.44, None, None, nombre="Pie")
@@ -494,6 +643,17 @@ def exportar_png(pptx_path, png_path):
 
 
 # ================================================================ 7. Principal
+def siguiente_numero(carpeta):
+    """Busca el último Reporte_FEN_###_... en la carpeta de salida y devuelve el siguiente."""
+    nums = []
+    if os.path.isdir(carpeta):
+        for f in os.listdir(carpeta):
+            m = re.match(r"Reporte_FEN_(\d+)_", f)
+            if m and "BORRADOR" not in f:
+                nums.append(int(m.group(1)))
+    return f"{max(nums) + 1:03d}" if nums else ""
+
+
 def main():
     ap = argparse.ArgumentParser(description="Genera el Reporte FEN de Pacífico en PPTX y PNG.")
     ap.add_argument("datos", help="archivo de datos (ver datos_fen.txt)")
@@ -502,9 +662,14 @@ def main():
     a = ap.parse_args()
 
     d = leer_datos(a.datos)
+    if not d["numero"]:
+        d["numero"] = siguiente_numero(a.salida)
+        if d["numero"]:
+            print(f"Número de reporte no indicado: se usa el siguiente al último generado ({d['numero']}).")
     faltan = [c for c in ("numero", "fecha") if not d[c]]
     if faltan:
-        sys.exit("Falta completar en el archivo de datos: " + ", ".join(f.upper() for f in faltan))
+        sys.exit("Falta completar en el archivo de datos: " + ", ".join(f.upper() for f in faltan)
+                 + ". Agrega por ejemplo la línea  NUMERO: 013")
 
     confirmados = [c for c in d["conf"] if c]
     if len(confirmados) < 2 and not a.borrador:

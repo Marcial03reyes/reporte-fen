@@ -1,18 +1,16 @@
-# ============================================================
-#  1) Borra el mensaje de ejemplo y pega aquí el de WhatsApp, tal cual llegó.
-#  2) Abajo completa los datos de Pacífico (no borres los [corchetes]).
-#  3) Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
-# ============================================================
-
-​🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL
+​🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL* 
 📅 Fecha: 29/10/2026
-🕙 Corte: 12:00 horas
+🕙 Corte: 18:00 horas
+
 ​⛈️ Lluvias reportadas:
-▪️ Amazonas: Continuan las Lluvias intensas en Bagua Grande y Bagua Chica acumulación extrema provoca aniegos en las vías principales de la ciudad, afectacion en el traslado de colaboradores.
-▪️ Pasco: Lluvias intensas en Oxapampa provoca aniegos en la ciudad.
- ▪️ Huánuco: Lluvias intensas en Tingo Maria provoca Huaicos en la zona de Chancadora, sin afectaciones al colaborador o agencias cercanas.
-▪️Cajamarca: Lluvias moderadas en Jaen y la ciudad de Cajamarca, sin afectacion.
-▪️Loreto: Lluvias moderadas en Iquitos, sin afectaciones.
+▪️Tumbes y Piura: Lluvias moderadas en Tumbes y zonas altas de Piura (Chulucanas) con presencia de relampagos. Zonas de frontera.
+▪️ La Libertad y Lambayeque: Lluvias  moderadas en Zonas altas Motupe y Otuzco
+▪️ San Martin: lluvias moderadas con presencia de relampagos en Moyobamba y Tarapoto.
+▪️Cajamarca: Lluvias moderadas en Jaen, Celendin y la ciudad de Cajamarca, sin afectacion.
+▪️Loreto: Lluvias ligeras en Iquitos, sin afectaciones.
+▪️Ucayali: Lluvias ligeras en Pucallpa.
+▪️Pasco: Lluvias ligeras en Cerro de Pasco y  zonas agricolas de Oxapampa.
+▪️ Lima: Chosica Zonas altas de Matucana con Pronóstico de extenderse a Lima Metropolitana.
 
 ​🏞️ Crecida de ríos:
 
@@ -24,33 +22,20 @@
 
 
 ​🚧 Vías restringidas:
-▪️ Zorritos / Tumbes: Vías y calles urbanas restringidas por lluvias extremas e inundaciones urbanas.
-▪️ Inambari / Madre de Dios: Caminos ribereños locales con paso restringido y bloqueado por inundación y desborde de canales.
-▪️ Canchaque / Piura (Carretera Piura - Huancabamba): Tránsito con precaución y posible restricción ante la alta vulnerabilidad por lluvias intensas en curso.
-▪️Via Tingo Maria - Aguaytia  (Huanuco)
+
+▪️ Motupe / Lambayeque - deslizamiento de tierra.
+▪️ Canchaque / Piura (Carretera Piura - Huancabamba) desborde de rio Serran.
+▪️Via Tingo Maria - Aguaytia (Huanuco) deslizamiento de lodo (Huayco)
 ▪️Via Jaen - Chiclayo (Cajamarca) deslizamientos provoca vehículos varados.
 
-​📡 PRONÓSTICO – PRÓXIMAS HORAS Y JORNADA DEL 29/10:
+​📡 *PRONÓSTICO – PRÓXIMAS HORAS Y JORNADA DEL 29/10:* 
 
-SIERRA: Se prevén precipitaciones de moderada a extrema intensidad en la sierra norte (Piura), y de moderada a fuerte intensidad en la vertiente oriental (centro y norte); así como de ligera a moderada intensidad en la vertiente occidental de la sierra sur (Tacna y Moquegua). Estos eventos podrían estar acompañados de descargas eléctricas y ráfagas de viento. Asimismo, se espera la ocurrencia de granizo en zonas por encima de los 2800 msnm, en la cordillera centro y sur.
+ *SIERRA* : Se prevén precipitaciones de moderada a extrema intensidad en la sierra norte (Piura), y de moderada a fuerte intensidad en la vertiente oriental (centro y norte); así como de ligera a moderada intensidad en la vertiente occidental de la sierra sur (Tacna y Moquegua). Estos eventos podrían estar acompañados de descargas eléctricas y ráfagas de viento. Asimismo, se espera la ocurrencia de granizo en zonas por encima de los 2800 msnm, en la cordillera centro y sur.
 
-SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad principalmente en la selva alta y baja (Loreto). Estos eventos estarán acompañados de descargas eléctricas y ráfagas de viento, con mayor probabilidad de ocurrencia durante la tarde, noche y madrugada.
+ *SELVA* : Se prevén lluvias y/o chubascos de ligera a moderada intensidad principalmente en la selva alta y baja (Loreto). Estos eventos estarán acompañados de descargas eléctricas y ráfagas de viento, con mayor probabilidad de ocurrencia durante la tarde, noche y madrugada.
 
-COSTA: Se prevén lluvias de moderada a extrema intensidad en Tumbes y en la costa interior de Piura. En sectores de la costa interior norte se espera lluvias de moderada intensidad.
+ *COSTA* : Se prevén lluvias de moderada a extrema intensidad en Tumbes y en la costa interior de Piura. En sectores de la costa interior norte se espera lluvias de moderada intensidad.
+
+Posibilidad de lluvias ligeras en Lima Metropolitana.
 
 ​Se mantiene el monitoreo de las precipitaciones y posibles afectaciones a nivel nacional.
-
-# ------------------- DATOS DE PACÍFICO (no borrar) -------------------
-# NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
-[CONFIRMACIONES]
-NUMERO: 013
-Persona 1:
-Persona 2:
-
-[IMPACTO PACIFICO]
-Sedes: Sin afectación reportada.
-Colaboradores: Sin afectación reportada.
-
-[PIE DE PAGINA]
-Pacífico Seguros
-Fuente: Reporte FEN · Expertos GRD & Tecnología Geográfica Lab

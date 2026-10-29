@@ -1,0 +1,49 @@
+# ============================================================
+#  DATOS DEL REPORTE FEN · Pacífico Seguros
+#  - Una línea por punto. Lo que va antes de ":" sale en negrita.
+#  - Las líneas que empiezan con # se ignoran.
+#  - El reporte solo se genera cuando las 2 personas confirman.
+# ============================================================
+
+NUMERO: 012
+FECHA: 27/10/2026
+HORARIO: 18:00 - 08:00 horas
+
+[LLUVIAS REPORTADAS]
+Tumbes: aniegos en Puerto Pizarro, Zarumilla, A.H. Los Jardines, barrio San José, Circuito Pampa Grande. Corte de luz en Corrales
+Piura: aniegos en 26 de octubre, Castilla, Tambogrande, Chulucanas, Morropón, Sullana y Paita
+
+[VIAS RESTRINGIDAS]
+Arequipa: restricción por arena en Yauca. Ocoña con tránsito normal tras derrumbe, por verificar.
+Tumbes y Manu: vías con aniegos y caminos afectados, respectivamente.
+
+[RIOS Y OTRAS AFECTACIONES]
+Ríos: desborde del río Kimbiri en Cusco
+
+[PRONOSTICO 1]
+TITULO: HOY, 27/10
+Costa: lluvias y tormentas en Tumbes y Piura.
+Sierra y selva: lluvias de ligera a moderada intensidad con posibles tormentas.
+
+[PRONOSTICO 2]
+TITULO: NOCHE DEL 27/10 Y MADRUGADA DEL 28/10
+Tumbes: lluvias fuertes y episodios intensos cerca de Ecuador. Podrían persistir durante la noche y primeras horas de la madrugada.
+Piura: lluvias moderadas a fuertes en Chulucanas, Sullana y Tambogrande, con episodios intensos localizados e intensidad variable.
+Oxapampa y Satipo: lluvias intensas, con posibles tormentas.
+
+[NOTA]
+Se mantiene el monitoreo.
+
+# Escribe el nombre de cada persona cuando confirme por WhatsApp que no hubo afectados
+[CONFIRMACIONES]
+Persona 1:
+Persona 2:
+
+# Si hubo afectación, reemplaza el texto. Ej.: Sedes: Sede Piura con filtración en primer piso, operativa.
+[IMPACTO PACIFICO]
+Sedes: Sin afectación reportada.
+Colaboradores: Sin afectación reportada.
+
+[PIE DE PAGINA]
+Pacífico Seguros
+Fuente: Reporte FEN · Expertos GRD & Tecnología Geográfica Lab

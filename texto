@@ -1,3 +1,9 @@
+# ============================================================
+#  1) Borra el mensaje de ejemplo y pega aquí el de WhatsApp, tal cual llegó.
+#  2) Abajo completa los datos de Pacífico (no borres los [corchetes]).
+#  3) Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
+# ============================================================
+
 ​🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL
 📅 Fecha: 29/10/2026
 🕙 Corte: 12:00 horas
@@ -33,3 +39,18 @@ SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad principa
 COSTA: Se prevén lluvias de moderada a extrema intensidad en Tumbes y en la costa interior de Piura. En sectores de la costa interior norte se espera lluvias de moderada intensidad.
 
 ​Se mantiene el monitoreo de las precipitaciones y posibles afectaciones a nivel nacional.
+
+# ------------------- DATOS DE PACÍFICO (no borrar) -------------------
+# NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
+[CONFIRMACIONES]
+NUMERO: 013
+Persona 1:
+Persona 2:
+
+[IMPACTO PACIFICO]
+Sedes: Sin afectación reportada.
+Colaboradores: Sin afectación reportada.
+
+[PIE DE PAGINA]
+Pacífico Seguros
+Fuente: Reporte FEN · Expertos GRD & Tecnología Geográfica Lab

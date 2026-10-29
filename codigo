@@ -658,7 +658,9 @@ def main():
     ap = argparse.ArgumentParser(description="Genera el Reporte FEN de Pacífico en PPTX y PNG.")
     ap.add_argument("datos", help="archivo de datos (ver datos_fen.txt)")
     ap.add_argument("--borrador", action="store_true", help="generar aunque falten las 2 confirmaciones")
-    ap.add_argument("--salida", default=".", help="carpeta donde guardar los archivos")
+    carpeta_script = os.path.dirname(os.path.abspath(__file__))
+    ap.add_argument("--salida", default=os.path.join(carpeta_script, "Reportes generados"),
+                    help="carpeta donde guardar los PPT y PNG (por defecto: 'Reportes generados' junto al script)")
     a = ap.parse_args()
 
     d = leer_datos(a.datos)

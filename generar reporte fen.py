@@ -416,6 +416,7 @@ def texto(slide, x, y, w, h, partes, size, color=NAVY, bold=False, align=PP_ALIG
     for i, par in enumerate(parrafos):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = align
+        p.line_spacing = Pt(round(size * 1.2, 1))   # interlineado fijo (Nunito trae uno muy amplio)
         runs = [(par, bold, color)] if isinstance(par, str) else par
         for t, b, c in runs:
             r = p.add_run()
@@ -439,6 +440,7 @@ def vinetas(slide, x, y, w, h, items, size, nombre):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = PP_ALIGN.JUSTIFY
         p.space_after = Pt(3)
+        p.line_spacing = Pt(round(size * 1.2, 1))   # interlineado fijo: igual en PowerPoint y LibreOffice
         pPr = p._p.get_or_add_pPr()
         pPr.set("marL", str(Inches(0.13)))
         pPr.set("indent", str(-Inches(0.13)))

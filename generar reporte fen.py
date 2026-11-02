@@ -727,10 +727,10 @@ def construir(d, salida_pptx, borrador=False):
     if not cabe:
         print("  Aviso: hay mucho texto; revisa en el PPT que nada quede cortado.")
 
-    # ---- Pie: "Pacífico Seguros" a la izquierda; torito y logo de Pacífico a la derecha
-    # (la sección [PIE DE PAGINA] del .txt ya no se usa; se acepta para no romper archivos antiguos)
-    texto(slide, 0.6, 6.98, 8.5, 0.42, "Pacífico Seguros", 10, P_GREY, True, anchor=MSO_ANCHOR.MIDDLE,
-          nombre="Pie")
+    # ---- Pie: fuente a la izquierda; torito y logo de Pacífico a la derecha
+    lineas_pie = (d["pie"] or ["Pacífico Seguros",
+                               "Fuente: Reporte FEN · Expertos GRD & Tecnología Geográfica Lab"])[:2]
+    texto(slide, 0.6, 6.98, 8.5, 0.42, lineas_pie, 9, P_GREY, True, anchor=MSO_ANCHOR.MIDDLE, nombre="Pie")
     x_logo = 12.83
     if recurso("logo_pacifico.png"):
         w, _ = imagen_ajustada(slide, recurso("logo_pacifico.png"), 0, 7.0, alto=0.4)

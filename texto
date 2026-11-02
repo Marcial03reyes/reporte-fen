@@ -1,4 +1,10 @@
-🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*
+# ============================================================
+#  1) Borra el mensaje de ejemplo y pega aquí el de WhatsApp, tal cual llegó.
+#  2) Abajo completa los datos de Pacífico (no borres los [corchetes]).
+#  3) Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
+# ============================================================
+
+​🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*
 📅 *Fecha:* 2/11/2026
 🕙 *Corte:* 07:00 horas
 
@@ -35,3 +41,17 @@
 ▪️ *Selva:* Se prevén lluvias y/o chubascos de ligera a moderada intensidad, principalmente en la selva alta y baja de Loreto, acompañados de descargas eléctricas y ráfagas de viento, con mayor probabilidad durante la tarde, noche y madrugada.
 
 _Se mantiene el monitoreo de las precipitaciones, activación de quebradas, incremento de caudales y posibles afectaciones a la infraestructura y colaboradores._
+
+# ------------------- DATOS DE PACÍFICO (no borrar) -------------------
+# NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
+[CONFIRMACIONES]
+NUMERO: 002
+Persona 1: Paola
+Persona 2: Elizabeth
+
+[IMPACTO PACIFICO]
+Sedes: Sin afectación reportada.
+Colaboradores: Sin afectación reportada.
+
+[PIE DE PAGINA]
+Pacífico Seguros

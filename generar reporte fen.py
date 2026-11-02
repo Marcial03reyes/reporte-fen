@@ -727,10 +727,10 @@ def construir(d, salida_pptx, borrador=False):
     if not cabe:
         print("  Aviso: hay mucho texto; revisa en el PPT que nada quede cortado.")
 
-    # ---- Pie: fuente a la izquierda; torito y logo de Pacífico a la derecha
-    lineas_pie = (d["pie"] or ["Pacífico Seguros",
-                               "Fuente: Reporte FEN · Expertos GRD & Tecnología Geográfica Lab"])[:2]
-    texto(slide, 0.6, 6.98, 8.5, 0.42, lineas_pie, 9, P_GREY, True, anchor=MSO_ANCHOR.MIDDLE, nombre="Pie")
+    # ---- Pie: "Pacífico Seguros" a la izquierda; torito y logo de Pacífico a la derecha
+    # (la sección [PIE DE PAGINA] del .txt ya no se usa; se acepta para no romper archivos antiguos)
+    texto(slide, 0.6, 6.98, 8.5, 0.42, "Pacífico Seguros", 10, P_GREY, True, anchor=MSO_ANCHOR.MIDDLE,
+          nombre="Pie")
     x_logo = 12.83
     if recurso("logo_pacifico.png"):
         w, _ = imagen_ajustada(slide, recurso("logo_pacifico.png"), 0, 7.0, alto=0.4)
@@ -755,15 +755,36 @@ def exportar_png(pptx_path, png_path):
 
     # Opción A: PowerPoint en Windows (resultado idéntico al PPT)
     if platform.system() == "Windows":
+        tmpdir = tempfile.mkdtemp(prefix="reporte_fen_")
+        pres = None
         try:
             import win32com.client  # pip install pywin32
+            # Se exporta desde una copia con nombre único: si PowerPoint todavía tiene abierta
+            # una versión anterior del mismo reporte, no la reutiliza y la imagen sale actualizada.
+            copia = os.path.join(tmpdir, f"reporte_{datetime.now():%H%M%S%f}.pptx")
+            shutil.copy2(pptx_path, copia)
+            png_tmp = os.path.join(tmpdir, "reporte.png")
             app = win32com.client.Dispatch("PowerPoint.Application")
-            pres = app.Presentations.Open(pptx_path, ReadOnly=True, WithWindow=False)
-            pres.Slides(1).Export(png_path, "PNG", 1920, 1080)
+            pres = app.Presentations.Open(copia, ReadOnly=True, WithWindow=False)
+            pres.Slides(1).Export(png_tmp, "PNG", 1920, 1080)
             pres.Close()
+            pres = None
+            if os.path.exists(png_path):
+                os.remove(png_path)
+            shutil.move(png_tmp, png_path)
             return "PowerPoint"
+        except PermissionError:
+            print(f"  No se pudo reemplazar {os.path.basename(png_path)}: ciérralo si está abierto y vuelve a ejecutar.")
+            return None
         except Exception as e:  # noqa: BLE001
             print(f"  (No se pudo usar PowerPoint: {e}. Probando con LibreOffice...)")
+        finally:
+            if pres is not None:
+                try:
+                    pres.Close()
+                except Exception:  # noqa: BLE001
+                    pass
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     # Opción B: LibreOffice
     soffice = os.environ.get("FEN_SOFFICE")
@@ -871,7 +892,11 @@ def main():
         instalar_fuentes()
     except Exception as e:  # noqa: BLE001
         print(f"  (No se pudo instalar la fuente Nunito: {e}. Instálala a mano desde recursos/fuentes.)")
-    construir(d, pptx_path, borrador=len(confirmados) < 2)
+    try:
+        construir(d, pptx_path, borrador=len(confirmados) < 2)
+    except PermissionError:
+        sys.exit(f"No se pudo guardar {os.path.basename(pptx_path)}: está abierto en PowerPoint. "
+                 "Ciérralo y vuelve a ejecutar.")
     print(f"PPT creado: {pptx_path}")
     motor = exportar_png(pptx_path, png_path)
     if motor:

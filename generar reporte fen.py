@@ -67,13 +67,44 @@ SECCIONES = {
     "IMPACTO PACÍFICO": "impacto",
     "PIE DE PAGINA": "pie",
     "PIE DE PÁGINA": "pie",
+    "MEDIDAS": "medidas",
+    "AGENCIAS": "agencias",
+    "AGENCIAS PACIFICO": "agencias",
+    "AGENCIAS PACÍFICO": "agencias",
 }
 
 
 def _vacio():
     return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [],
             "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
-            "conf": [], "sedes": "", "colab": "", "pie": []}
+            "conf": [], "sedes": "", "colab": "", "pie": [], "medidas": [],
+            "agencias": [], "ag_fecha": "", "ag_corte": "", "ag_resumen": ""}
+
+
+SIN_AFECTACION = re.compile(r"^(sin\s+(afectaci|impacto|novedad|da[ñn]o|incidencia)|operativ|normal)", re.I)
+
+
+def es_afectado(valor):
+    """True si el texto describe una afectación (no empieza con 'Sin afectación', 'Sin impacto', etc.)."""
+    return bool(valor.strip()) and not SIN_AFECTACION.match(valor.strip())
+
+
+def _linea_agencia(d, linea):
+    """Procesa una línea del mensaje de agencias de Pacífico (ya sin emojis ni asteriscos)."""
+    k, sep, valor = linea.partition(":")
+    kl = k.strip().lower()
+    if kl == "fecha":
+        d["ag_fecha"] = valor.strip()
+    elif kl in ("corte", "hora", "horario"):
+        d["ag_corte"] = valor.strip()
+    elif kl == "resumen":
+        d["ag_resumen"] = valor.strip()
+    elif re.match(r"^(saludos|atentamente|atte|gracias)", kl):
+        pass
+    elif "impacto" in kl and "agencia" in kl:
+        pass                                    # es el título del mensaje
+    elif sep and valor.strip():
+        d["agencias"].append((k.strip(), valor.strip()))
 
 
 def _es_seccion(linea):
@@ -117,6 +148,8 @@ def _leer_estructurado(lineas, d):
                 d["colab"] = valor.strip()
         elif actual == "pie":
             d["pie"].append(linea)
+        elif actual == "agencias":
+            _linea_agencia(d, _limpiar(raw))
         else:
             d[actual].append(linea)
     return d
@@ -154,8 +187,12 @@ def _tipo_seccion(titulo):
     def hay(patron):                # compara palabras completas ("lluvias" no contiene la palabra "vías")
         return re.search(r"\b(" + patron + r")", t) is not None
 
+    if hay(r"agencias?") and hay(r"pac[ií]fico"):
+        return "agencias"           # mensaje de agencias de Pacífico (alimenta "Sedes")
     if hay(r"pron[oó]stico"):
         return "pronostico"
+    if hay(r"medidas|acciones|disposiciones"):
+        return "medidas"
     if hay(r"impacto|credicorp|infraestructura|colaborador|agencia"):
         return "ignorar"            # el impacto lo completa Pacífico
     if hay(r"v[ií]as?\b|carreteras?\b|tr[aá]nsito|tramos?\b"):
@@ -179,6 +216,14 @@ def _leer_whatsapp(lineas, d):
         low = linea.lower()
         k, sep, valor = linea.partition(":")
         kl = k.strip().lower()
+        if re.match(r"^(saludos|atentamente|atte|gracias)\b", low):
+            continue
+
+        # Dentro del mensaje de agencias de Pacífico, fecha/corte/resumen son de ese mensaje
+        if actual == "agencias" and not (not _es_vineta(raw) and _tipo_seccion(linea) not in (None, "agencias")
+                                         and (linea.endswith(":") or not sep)):
+            _linea_agencia(d, linea)
+            continue
 
         # Datos de cabecera
         if kl in ("numero", "número", "n°", "nro"):
@@ -225,11 +270,30 @@ def leer_datos(ruta):
     clima = {"LLUVIAS REPORTADAS", "VIAS RESTRINGIDAS", "VÍAS RESTRINGIDAS", "RIOS Y OTRAS AFECTACIONES",
              "RÍOS Y OTRAS AFECTACIONES", "PRONOSTICO 1", "PRONÓSTICO 1"}
     if any(s in clima for s in secciones if s):
-        return _leer_estructurado(lineas, d)
+        return resolver_sedes(_leer_estructurado(lineas, d))
     # Mensaje de WhatsApp arriba + datos de Pacífico entre corchetes abajo
     corte = next((i for i, s in enumerate(secciones) if s), len(lineas))
     _leer_whatsapp(lineas[:corte], d)
-    return _leer_estructurado(lineas[corte:], d)
+    return resolver_sedes(_leer_estructurado(lineas[corte:], d))
+
+
+def resolver_sedes(d):
+    """Si se pegó el mensaje de agencias de Pacífico, el estado de 'Sedes' sale de ahí.
+    Lo que escribas a mano en 'Sedes:' manda solo si describe una afectación."""
+    if not d["agencias"] or es_afectado(d["sedes"]):
+        return d
+    afectadas = [(n, e) for n, e in d["agencias"] if es_afectado(e)]
+    total = len(d["agencias"])
+    if not afectadas:
+        d["sedes"] = f"Sin afectación en las {total} agencias de provincia." if total > 1 else \
+            "Sin afectación en agencias de provincia."
+    elif len(afectadas) == 1:
+        d["sedes"] = f"{afectadas[0][0]}: {afectadas[0][1]}"
+    else:
+        nombres = [n for n, _ in afectadas]
+        d["sedes"] = f"Afectación en {len(afectadas)} de {total} agencias: " + ", ".join(nombres[:-1]) + \
+            " y " + nombres[-1] + "."
+    return d
 
 
 # ================================================================ 2. Medir texto
@@ -349,6 +413,15 @@ def _radar(dr, c, s):
     dr.ellipse((s*.28, s*.28, s*.72, s*.72), outline=c, width=w)
     dr.line((s*.50, s*.50, s*.80, s*.20), fill=c, width=w)
     dr.ellipse((s*.45, s*.45, s*.55, s*.55), fill=c)
+
+
+def _megafono(dr, c, s):
+    w = s // 18
+    dr.polygon([(s*.14, s*.40), (s*.34, s*.40), (s*.74, s*.18), (s*.74, s*.82), (s*.34, s*.60), (s*.14, s*.60)],
+               outline=c, width=w)
+    dr.line((s*.34, s*.40, s*.34, s*.60), fill=c, width=w)
+    dr.line((s*.26, s*.60, s*.34, s*.86), fill=c, width=w)
+    dr.arc((s*.70, s*.36, s*.94, s*.64), 300, 60, fill=c, width=w)
 
 
 C_TEAL, C_PINK = (11, 157, 176, 255), (230, 0, 126, 255)
@@ -604,11 +677,16 @@ def construir(d, salida_pptx, borrador=False):
     bloques = [(d["p1_titulo"] or "PRONÓSTICO", P_BLUE_DK, d["p1"] or ["Sin pronóstico."])]
     if d["p2"]:
         bloques.append((d["p2_titulo"] or "NOCHE Y MADRUGADA", P_PINK, d["p2"]))
+    secs_base, bloques_base = secs, bloques
+    sec_medidas = ("MEDIDAS", _megafono, G_PURPLE, d["medidas"]) if d["medidas"] else None
+    blq_medidas = ("MEDIDAS", P_PURPLE, d["medidas"]) if d["medidas"] else None
+    hay_agencias = bool(d["agencias"])
 
     TOP, BOTTOM = 1.42, 6.86
     HEAD = 0.5
     y0 = TOP + HEAD + 0.14
-    Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08
+    EXTRA_AG = 0.27 if hay_agencias else 0.0      # fila de agencias dentro del panel de impacto
+    Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG
     ry0, ry1 = TOP + HEAD + 0.16, 6.02
     MIN_FS = 8.0
 
@@ -644,8 +722,17 @@ def construir(d, salida_pptx, borrador=False):
         return mejor
 
     compacto = True                     # un solo diseño: impacto en una fila
-    mejor = elegir(Y1_COMPACTO)
-    (cabe, _, _), LW, RW, fs, fs2 = mejor
+    # "Medidas" (cuando viene) va a la columna donde deje la letra más grande
+    opciones = [(secs_base, bloques_base)]
+    if sec_medidas:
+        opciones = [(secs_base + [sec_medidas], bloques_base), (secs_base, bloques_base + [blq_medidas])]
+    mejor = None
+    for secs, bloques in opciones:
+        m = elegir(Y1_COMPACTO)
+        if mejor is None or m[0] > mejor[0][0]:
+            mejor = (m, secs, bloques)
+    (m, secs, bloques) = mejor
+    (cabe, _, _), LW, RW, fs, fs2 = m
     RX = LX + LW + GAP
 
     # ---- Tarjetas blancas con encabezado tenue
@@ -675,9 +762,6 @@ def construir(d, salida_pptx, borrador=False):
     impactos = (("Sedes", _edificio, G_BLUE, d["sedes"]),
                 ("Colaboradores", _personas, G_PINK, d["colab"]))
 
-    def es_afectado(v):
-        return not v.lower().startswith(("sin afectación", "sin afectacion"))
-
     if not compacto:
         px, py, pw, ph = LX + 0.22, 5.52, LW - 0.44, 1.2
         panel = caja(slide, px, py, pw, ph, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Panel impacto")
@@ -692,10 +776,10 @@ def construir(d, salida_pptx, borrador=False):
             af = es_afectado(v)
             chip(slide, cx + 0.6, py + 0.76, col_w - 0.75, 0.34, "", v, af, 10 if len(v) < 45 else 8.5)
     else:
-        px, py, pw, ph = LX + 0.22, 6.14, LW - 0.44, 0.6
+        px, py, pw, ph = LX + 0.22, 6.14 - EXTRA_AG, LW - 0.44, 0.6 + EXTRA_AG
         panel = caja(slide, px, py, pw, ph, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Panel impacto")
-        panel.adjustments[0] = 0.25
-        texto(slide, px + 0.2, py, 2.1, ph, [[("IMPACTO EN", True, P_BLUE_DK)], [("PACÍFICO SEGUROS", True, P_BLUE_DK)]],
+        panel.adjustments[0] = 0.25 if not hay_agencias else 0.18
+        texto(slide, px + 0.2, py, 2.1, 0.6, [[("IMPACTO EN", True, P_BLUE_DK)], [("PACÍFICO SEGUROS", True, P_BLUE_DK)]],
               11, anchor=MSO_ANCHOR.MIDDLE)
         resto = pw - 2.35
         col_w = resto / 2
@@ -704,7 +788,26 @@ def construir(d, salida_pptx, borrador=False):
             icono(slide, icono_circulo(ic, col), cx, py + 0.11, 0.38)
             v = valor or "Sin afectación reportada."
             af = es_afectado(v)
-            chip(slide, cx + 0.46, py + 0.1, col_w - 0.56, 0.4, etq, v, af, 9.5 if len(v) < 40 else 8)
+            ancho_chip = col_w - 0.56
+            fs_chip = 9.5
+            while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.36:
+                fs_chip -= 0.5
+            chip(slide, cx + 0.46, py + 0.1, ancho_chip, 0.4, etq, v, af, fs_chip)
+        if hay_agencias:
+            # Fila con cada agencia revisada: punto verde (sin afectación) o rojo (con afectación)
+            f_ag = re.sub(r"^(\d{1,2}/\d{1,2})/\d{2,4}$", r"\1", d["ag_fecha"].strip())
+            c_ag = re.sub(r"\s*(horas|hrs?|h)\.?$", "", d["ag_corte"].strip(), flags=re.I)
+            extra = ", ".join(x for x in (f_ag, c_ag) if x)
+            partes = [("Agencias provincia" + (f" ({extra})" if extra else "") + ":  ", True, P_BLUE_DK)]
+            for n, e in d["agencias"]:
+                af = es_afectado(e)
+                partes += [("●\u00a0", False, BAD_FG if af else OK_FG), (n + "   ", af, BAD_FG if af else P_INK)]
+            ancho_ag = (pw - 0.4) * 72 * 0.97
+            fs_ag = 9.5
+            while fs_ag > 6.5 and sum(ancho_pt(t, fs_ag, b) for t, b, _ in partes) > ancho_ag:
+                fs_ag -= 0.5
+            texto(slide, px + 0.2, py + 0.58, pw - 0.4, 0.22, [partes], fs_ag, anchor=MSO_ANCHOR.MIDDLE,
+                  nombre="Agencias provincia")
 
     # ---- Columna derecha: pronóstico
     rl_x, rl_w = RX + 0.28, RW - 0.56
@@ -713,7 +816,7 @@ def construir(d, salida_pptx, borrador=False):
         ht = alto_tit(t, rl_w)
         texto(slide, rl_x, y, rl_w, ht, t.upper(), 13, col, True)
         h = alto_lista(items, fs2, rl_w)
-        vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2, f"Pronostico {i + 1}")
+        vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2, t.capitalize() if t == "MEDIDAS" else f"Pronostico {i + 1}")
         y += ht + h + 0.22
         if i < len(bloques) - 1:
             linea_h(slide, rl_x, RX + RW - 0.28, y - 0.11)
@@ -746,7 +849,9 @@ def construir(d, salida_pptx, borrador=False):
     conf = [c for c in d["conf"] if c]
     slide.notes_slide.notes_text_frame.text = (
         ("Confirmado sin afectados por: " + " y ".join(conf)) if conf else "Sin confirmaciones registradas."
-    ) + f"\nGenerado el {datetime.now():%d/%m/%Y %H:%M}."
+    ) + (("\nAgencias de provincia" + (f" (corte {d['ag_corte']}, {d['ag_fecha']})" if d["ag_corte"] else "") + ":\n"
+          + "\n".join(f"  - {n}: {e}" for n, e in d["agencias"])) if d["agencias"] else "") \
+      + f"\nGenerado el {datetime.now():%d/%m/%Y %H:%M}."
 
     prs.save(salida_pptx)
 
@@ -865,7 +970,12 @@ def main():
 
     d = leer_datos(a.datos)
     print(f"Leído: {len(d['lluvias'])} lluvias · {len(d['vias'])} vías · {len(d['rios'])} ríos/quebradas · "
-          f"{len(d['p1']) + len(d['p2'])} pronósticos")
+          f"{len(d['p1']) + len(d['p2'])} pronósticos"
+          + (f" · {len(d['medidas'])} medidas" if d["medidas"] else ""))
+    if d["agencias"]:
+        af = [n for n, e in d["agencias"] if es_afectado(e)]
+        print(f"Agencias Pacífico: {len(d['agencias'])} revisadas, "
+              + (f"{len(af)} con afectación ({', '.join(af)})." if af else "ninguna con afectación."))
     for campo, nombre in (("lluvias", "LLUVIAS"), ("vias", "VÍAS RESTRINGIDAS"), ("rios", "RÍOS Y QUEBRADAS")):
         if not d[campo]:
             print(f"  Aviso: la sección {nombre} quedó vacía. Revisa que el mensaje la traiga.")

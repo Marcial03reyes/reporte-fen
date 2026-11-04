@@ -47,6 +47,8 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
+VERSION = "2026-11-04 (Medidas + agencias)"
+
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
 
@@ -968,6 +970,9 @@ def main():
                     help="carpeta donde guardar los PPT y PNG (por defecto: 'Reportes generados' junto al script)")
     a = ap.parse_args()
 
+    print(f"Reporte FEN · versión {VERSION}")
+    print(f"  Script: {os.path.abspath(__file__)}")
+    print(f"  Datos:  {os.path.abspath(a.datos)}")
     d = leer_datos(a.datos)
     print(f"Leído: {len(d['lluvias'])} lluvias · {len(d['vias'])} vías · {len(d['rios'])} ríos/quebradas · "
           f"{len(d['p1']) + len(d['p2'])} pronósticos"
@@ -1020,4 +1025,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

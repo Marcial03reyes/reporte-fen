@@ -40,7 +40,7 @@ _Se mantiene el monitoreo._
 # ------------------- DATOS DE PACÍFICO (no borrar) -------------------
 # NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
 [CONFIRMACIONES]
-NUMERO: 002
+NUMERO: 003
 Persona 1: Paola
 Persona 2: Elizabeth
 

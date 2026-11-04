@@ -47,7 +47,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-04 (Medidas + agencias)"
+VERSION = "2026-11-04b (Medidas + agencias)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -231,11 +231,15 @@ def _leer_whatsapp(lineas, d):
         if kl in ("numero", "número", "n°", "nro"):
             d["numero"] = valor.strip()
             continue
+        # La fecha y el corte del reporte son los del PRIMER mensaje (el Reporte FEN);
+        # si después aparece otra fecha (p. ej. del mensaje de agencias), no la reemplaza.
         if kl == "fecha":
-            d["fecha"] = valor.strip()
+            if not d["fecha"]:
+                d["fecha"] = valor.strip()
             continue
         if kl in ("corte", "horario", "hora"):
-            d["horario"] = linea.strip() if kl == "corte" else valor.strip()
+            if not d["horario"]:
+                d["horario"] = linea.strip() if kl == "corte" else valor.strip()
             continue
         if "reporte fenomenol" in low:
             continue

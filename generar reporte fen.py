@@ -51,7 +51,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05g (correo desde buzón de Continuidad)"
+VERSION = "2026-11-05h (Power Automate)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1144,6 +1144,90 @@ def paso_correo(d, pptx_path, png_path, carpeta_script, carpeta_salida, auto=Non
         pass
 
 
+# ================================================================ 6c. Power Automate
+def leer_configuracion(carpeta_script):
+    """configuracion.txt (opcional) junto al script:
+        CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
+        MODO_CORREO: automate | outlook | ninguno
+    Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
+    conf = {"salida": "", "modo": "outlook"}
+    ruta = os.path.join(carpeta_script, "configuracion.txt")
+    if not os.path.exists(ruta):
+        return conf
+    with open(ruta, encoding="utf-8-sig") as f:
+        for raw in f:
+            linea = raw.strip()
+            if not linea or linea.startswith("#"):
+                continue
+            k, sep, v = linea.partition(":")
+            if not sep:
+                continue
+            k, v = k.strip().upper(), v.strip().strip('"')
+            if k == "CARPETA_SALIDA" and v:
+                conf["salida"] = os.path.expandvars(os.path.expanduser(v))
+            elif k == "MODO_CORREO" and v:
+                conf["modo"] = v.lower()
+    return conf
+
+
+def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
+    """Deja en <salida>/_para_envio un .json con todo lo que el flujo de Power Automate necesita
+    (asunto, cuerpo, resumen e imagen y PPT en base64). El flujo se dispara con ese archivo."""
+    import base64
+    import html
+    import json
+    carpeta = os.path.join(carpeta_salida, "_para_envio")
+    os.makedirs(carpeta, exist_ok=True)
+    asunto, _ = armar_correo(d, {"saludo": "", "firma": ""})
+    corte = re.sub(r"^corte\s*:\s*", "", d["horario"], flags=re.I).strip()
+
+    def item(etq, valor):
+        v = valor or "Sin afectación reportada."
+        niv = nivel(v)
+        color = {"ok": "#1E7A45", "leve": "#A35A00", "afectado": "#C4123F"}[niv]
+        if niv != "ok":
+            etq = "Sedes afectadas" if etq == "Sedes" else "Colaboradores afectados"
+        return etq, v, niv, f'<li><b>{html.escape(etq)}:</b> <span style="color:{color}">{html.escape(v)}</span></li>'
+
+    s_etq, s_val, s_niv, s_li = item("Sedes", d["sedes"])
+    c_etq, c_val, c_niv, c_li = item("Colaboradores", d["colab"])
+    cuerpo = (f'<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1E2A44">'
+              f'<p>Estimados:</p><p>Se comparte el <b>Reporte FEN N.º {html.escape(d["numero"])}</b> del '
+              f'{html.escape(d["fecha"])}{(" (corte " + html.escape(corte) + ")") if corte else ""}.</p>'
+              f'<p><b>Impacto en Pacífico Seguros</b></p><ul>{s_li}{c_li}</ul>'
+              f'<p>Se adjunta el reporte en imagen (PNG) y en presentación (PPT).</p><p>Saludos,</p></div>')
+    resumen = (f"**{asunto}**\n\n- {s_etq}: {s_val}\n- {c_etq}: {c_val}\n\n"
+               f"Confirmado por: {' y '.join(c for c in d['conf'] if c)}")
+
+    def b64(ruta):
+        if not ruta or not os.path.exists(ruta):
+            return ""
+        with open(ruta, "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+
+    datos = {
+        "numero": d["numero"], "fecha": d["fecha"], "corte": corte, "asunto": asunto,
+        "cuerpo_html": cuerpo, "resumen_aprobacion": resumen,
+        "sedes": s_val, "sedes_nivel": s_niv, "colaboradores": c_val, "colaboradores_nivel": c_niv,
+        "confirmado_por": " y ".join(c for c in d["conf"] if c),
+        "archivo_png": os.path.basename(png_path) if png_path else "",
+        "archivo_pptx": os.path.basename(pptx_path),
+        "png_base64": b64(png_path), "pptx_base64": b64(pptx_path),
+        "generado": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+    }
+    # Nombre único: si regeneras el mismo reporte, el flujo se vuelve a disparar
+    nombre = os.path.splitext(os.path.basename(pptx_path))[0] + f"_{datetime.now():%Y%m%d-%H%M%S}.json"
+    destino = os.path.join(carpeta, nombre)
+    tmp = destino + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False)
+    os.replace(tmp, destino)          # aparece completo de una vez (OneDrive no sube un archivo a medias)
+    print("\nListo para Power Automate:")
+    print(f"  {destino}")
+    print("  En unos minutos te llegará la aprobación (Teams/Outlook). Al aprobarla, se envía el correo "
+          "desde el buzón de Continuidad.")
+
+
 # ================================================================ 7. Principal
 def instalar_fuentes():
     """En Windows, instala Nunito para el usuario actual (sin permisos de administrador) si aún no está."""
@@ -1189,13 +1273,15 @@ def main():
     ap.add_argument("--borrador", action="store_true", help="generar aunque falten las 2 confirmaciones")
     ap.add_argument("--sin-correo", action="store_true", help="solo generar el PPT y el PNG, sin el paso de correo")
     carpeta_script = os.path.dirname(os.path.abspath(__file__))
-    ap.add_argument("--salida", default=os.path.join(carpeta_script, "Reportes generados"),
-                    help="carpeta donde guardar los PPT y PNG (por defecto: 'Reportes generados' junto al script)")
+    config = leer_configuracion(carpeta_script)
+    ap.add_argument("--salida", default=config["salida"] or os.path.join(carpeta_script, "Reportes generados"),
+                    help="carpeta donde guardar los PPT y PNG (por defecto: configuracion.txt o 'Reportes generados')")
     a = ap.parse_args()
 
     print(f"Reporte FEN · versión {VERSION}")
     print(f"  Script: {os.path.abspath(__file__)}")
     print(f"  Datos:  {os.path.abspath(a.datos)}")
+    print(f"  Salida: {os.path.abspath(a.salida)}   (correo: {config['modo']})")
     d = leer_datos(a.datos)
     print(f"Leído: {len(d['lluvias'])} lluvias · {len(d['vias'])} vías · {len(d['rios'])} ríos/quebradas · "
           f"{len(d['p1']) + len(d['p2'])} pronósticos"
@@ -1251,7 +1337,15 @@ def main():
     if len(confirmados) < 2:
         print("\nEs un BORRADOR (faltan confirmaciones): no se ofrece el envío por correo.")
         return
-    paso_correo(d, pptx_path, png_path if motor else None, carpeta_script, a.salida)
+    if config["modo"] == "automate":
+        if not motor:
+            print("\nNo se preparó el envío: falta el PNG.")
+            return
+        preparar_envio_automate(d, pptx_path, png_path, a.salida)
+    elif config["modo"] == "outlook":
+        paso_correo(d, pptx_path, png_path if motor else None, carpeta_script, a.salida)
+    else:
+        print("\nCorreo desactivado (MODO_CORREO: ninguno).")
 
 
 if __name__ == "__main__":

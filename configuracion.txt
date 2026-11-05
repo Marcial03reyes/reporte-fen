@@ -1,0 +1,13 @@
+# ============================================================
+#  Configuración del Reporte FEN
+# ============================================================
+# Carpeta donde se guardan el PPT y el PNG. Para Power Automate, usa una carpeta
+# dentro de tu OneDrive de la empresa (la que se sincroniza sola). Ejemplo:
+#   CARPETA_SALIDA: C:\Users\G7451317\OneDrive - Pacifico Seguros\Reporte FEN\Reportes generados
+CARPETA_SALIDA:
+
+# Cómo se envía el correo:
+#   automate  -> deja un archivo en <CARPETA_SALIDA>\_para_envio y Power Automate se encarga
+#   outlook   -> el script pide el OK en la terminal y envía con Outlook (destinatarios.txt)
+#   ninguno   -> solo genera el PPT y el PNG
+MODO_CORREO: automate

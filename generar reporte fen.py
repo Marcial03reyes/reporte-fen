@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05i (Power Automate)"
+VERSION = "2026-11-05j (Power Automate)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1313,6 +1313,13 @@ def main():
         sys.exit(f"Solo hay {len(confirmados)} de 2 confirmaciones en [CONFIRMACIONES]. "
                  "Completa los nombres cuando confirmen por WhatsApp, o usa --borrador para una vista previa.")
 
+    # Si la carpeta viene de configuracion.txt, su carpeta "madre" debe existir (evita crear rutas inventadas)
+    if config["salida"] and os.path.abspath(a.salida) == os.path.abspath(config["salida"]):
+        madre = os.path.dirname(os.path.abspath(a.salida))
+        if "..." in a.salida or not os.path.isdir(madre):
+            sys.exit(f"La CARPETA_SALIDA de configuracion.txt no existe:\n  {a.salida}\n"
+                     "Copia la ruta real desde la barra de direcciones del Explorador de archivos "
+                     "(sin '...') o deja la línea vacía para guardar en 'Reportes generados'.")
     os.makedirs(a.salida, exist_ok=True)
     base = f"Reporte_FEN_{d['numero']}_Pacifico_{d['fecha'].replace('/', '-')}"
     if len(confirmados) < 2:
@@ -1336,6 +1343,13 @@ def main():
     else:
         print("No se generó el PNG: instala PowerPoint + pywin32 (Windows) o LibreOffice. "
               "Mientras tanto, en PowerPoint: Archivo > Exportar > PNG.")
+
+    print(f"\nArchivos guardados en: {os.path.abspath(a.salida)}")
+    if (a.sin_correo or config["modo"] != "outlook") and platform.system() == "Windows":
+        try:
+            os.startfile(os.path.abspath(a.salida))  # noqa: S606  abre la carpeta en el Explorador
+        except Exception:  # noqa: BLE001
+            pass
 
     # Paso de validación y envío por correo
     if a.sin_correo:

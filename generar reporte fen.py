@@ -1007,32 +1007,57 @@ def leer_destinatarios(ruta):
     return conf
 
 
-def armar_correo(d, conf):
-    """Devuelve (asunto, cuerpo_html). La imagen va incrustada con cid:reporte_fen."""
+def fecha_puntos(fecha):
+    """'4/11/2026' -> '04.11.2026'"""
+    m = re.match(r"^\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\s*$", fecha or "")
+    return f"{int(m.group(1)):02d}.{int(m.group(2)):02d}.{m.group(3)}" if m else (fecha or "")
+
+
+def saludo_por_hora(ahora=None):
+    h = (ahora or datetime.now()).hour
+    return "Estimados, buenos días:" if h < 12 else ("Estimados, buenas tardes:" if h < 19
+                                                     else "Estimados, buenas noches:")
+
+
+def armar_correo(d, conf, img_src="cid:reporte_fen"):
+    """Devuelve (asunto, cuerpo_html) con el formato del correo del Comité FEN.
+    img_src: 'cid:...' (Outlook) o 'data:image/...;base64,...' (Power Automate)."""
     import html
-    corte = re.sub(r"^corte\s*:\s*", "", d["horario"], flags=re.I).strip()
-    asunto = f"Reporte FEN {d['numero']} – {d['fecha']}" + (f" – Corte {corte}" if corte else "")
+    asunto = f"Reporte FEN {d['numero']} | {fecha_puntos(d['fecha'])}"
+    saludo = conf.get("saludo") or ""
+    if not saludo or saludo == "Estimados:":
+        saludo = saludo_por_hora()
+    firma = conf.get("firma") or "Saludos,"
+    punto = {"ok": "🟢", "leve": "🟠", "afectado": "🔴"}
 
-    def linea_impacto(etq, valor):
+    def estado(etq, valor):
         v = valor or "Sin afectación reportada."
-        niv = nivel(v)
-        color = {"ok": "#1E7A45", "leve": "#A35A00", "afectado": "#C4123F"}[niv]
-        if niv != "ok":
-            etq = "Sedes afectadas" if etq == "Sedes" else "Colaboradores afectados"
-        return (f'<li><b>{html.escape(etq)}:</b> <span style="color:{color}">'
-                f'{html.escape(v)}</span></li>')
+        return (f'<p style="margin:6px 0">{etq}: {punto[nivel(v)]} {html.escape(v)}</p>')
 
-    cuerpo = f"""<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1E2A44">
-<p>{html.escape(conf['saludo'])}</p>
-<p>Se comparte el <b>Reporte FEN N.º {html.escape(d['numero'])}</b> del {html.escape(d['fecha'])}{
-    (' (corte ' + html.escape(corte) + ')') if corte else ''}.</p>
-<p><b>Impacto en Pacífico Seguros</b></p>
-<ul>{linea_impacto('Sedes', d['sedes'])}{linea_impacto('Colaboradores', d['colab'])}</ul>
-<p><img src="cid:reporte_fen" alt="Reporte FEN {html.escape(d['numero'])}" style="width:100%;max-width:960px"></p>
-<p>Se adjunta la presentación.</p>
-<p>{html.escape(conf['firma'])}</p>
+    cuerpo = f"""<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt;color:#000000">
+<p>{html.escape(saludo)}</p>
+<p>Según lo coordinado en el último Comité FEN, compartimos el estado de afectación asociados en los frentes de
+Infraestructura y Colaboradores, con el objetivo de mantener visibilidad sobre cualquier impacto que pudiera presentarse.</p>
+<p>&nbsp;</p>
+<p style="margin:6px 0">Estado actual:</p>
+{estado("Infraestructura", d["sedes"])}
+{estado("Colaboradores", d["colab"])}
+<p><img src="{img_src}" alt="Reporte FEN {html.escape(d['numero'])}" width="900" style="width:900px;max-width:100%;height:auto"></p>
+<p>{html.escape(firma)}</p>
 </div>"""
     return asunto, cuerpo
+
+
+def imagen_para_correo_b64(png_path, ancho=1600):
+    """Versión liviana del PNG para incrustar en el cuerpo del correo (JPEG nítido, ~200 KB)."""
+    import base64
+    with Image.open(png_path) as im:
+        im = im.convert("RGB")
+        if im.width > ancho:
+            im = im.resize((ancho, round(im.height * ancho / im.width)), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=86, subsampling=0, optimize=True)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def enviar_outlook(asunto, cuerpo, para, cc, png_path, pptx_path, solo_borrador=False, desde=""):
@@ -1179,25 +1204,14 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
     import json
     carpeta = os.path.join(carpeta_salida, "_para_envio")
     os.makedirs(carpeta, exist_ok=True)
-    asunto, _ = armar_correo(d, {"saludo": "", "firma": ""})
     corte = re.sub(r"^corte\s*:\s*", "", d["horario"], flags=re.I).strip()
-
-    def item(etq, valor):
-        v = valor or "Sin afectación reportada."
-        niv = nivel(v)
-        color = {"ok": "#1E7A45", "leve": "#A35A00", "afectado": "#C4123F"}[niv]
-        if niv != "ok":
-            etq = "Sedes afectadas" if etq == "Sedes" else "Colaboradores afectados"
-        return etq, v, niv, f'<li><b>{html.escape(etq)}:</b> <span style="color:{color}">{html.escape(v)}</span></li>'
-
-    s_etq, s_val, s_niv, s_li = item("Sedes", d["sedes"])
-    c_etq, c_val, c_niv, c_li = item("Colaboradores", d["colab"])
-    cuerpo = (f'<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1E2A44">'
-              f'<p>Estimados:</p><p>Se comparte el <b>Reporte FEN N.º {html.escape(d["numero"])}</b> del '
-              f'{html.escape(d["fecha"])}{(" (corte " + html.escape(corte) + ")") if corte else ""}.</p>'
-              f'<p><b>Impacto en Pacífico Seguros</b></p><ul>{s_li}{c_li}</ul>'
-              f'<p>Se adjunta el reporte en imagen (PNG) y en presentación (PPT).</p><p>Saludos,</p></div>')
-    resumen = (f"**{asunto}**\n\n- {s_etq}: {s_val}\n- {c_etq}: {c_val}\n\n"
+    img_b64 = imagen_para_correo_b64(png_path) if png_path and os.path.exists(png_path) else ""
+    asunto, cuerpo = armar_correo(d, {}, img_src=f"data:image/jpeg;base64,{img_b64}")
+    s_val = d["sedes"] or "Sin afectación reportada."
+    c_val = d["colab"] or "Sin afectación reportada."
+    s_niv, c_niv = nivel(s_val), nivel(c_val)
+    punto = {"ok": "🟢", "leve": "🟠", "afectado": "🔴"}
+    resumen = (f"**{asunto}**\n\n- Infraestructura: {punto[s_niv]} {s_val}\n- Colaboradores: {punto[c_niv]} {c_val}\n\n"
                f"Confirmado por: {' y '.join(c for c in d['conf'] if c)}")
 
     def b64(ruta):

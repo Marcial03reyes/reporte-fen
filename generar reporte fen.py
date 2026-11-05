@@ -2,6 +2,7 @@
 Genera el Reporte FEN de Pacífico Seguros en PowerPoint (.pptx) y en imagen (.png).
 
 Uso:
+    python generar_reporte_fen.py                      (usa mensaje_whatsapp.txt; sirve el botón ▶ de VS Code)
     python generar_reporte_fen.py datos_fen.txt
     python generar_reporte_fen.py datos_fen.txt --borrador   (genera aunque falten confirmaciones)
     python generar_reporte_fen.py datos_fen.txt --sin-correo (no pregunta por el correo)
@@ -51,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05h (Power Automate)"
+VERSION = "2026-11-05i (Power Automate)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1269,10 +1270,12 @@ def siguiente_numero(carpeta):
 
 def main():
     ap = argparse.ArgumentParser(description="Genera el Reporte FEN de Pacífico en PPTX y PNG.")
-    ap.add_argument("datos", help="archivo de datos (ver datos_fen.txt)")
+    carpeta_script = os.path.dirname(os.path.abspath(__file__))
+    # Si no se indica archivo (p. ej. con el botón ▶ de VS Code), usa mensaje_whatsapp.txt junto al script
+    ap.add_argument("datos", nargs="?", default=os.path.join(carpeta_script, "mensaje_whatsapp.txt"),
+                    help="archivo de datos (por defecto: mensaje_whatsapp.txt junto al script)")
     ap.add_argument("--borrador", action="store_true", help="generar aunque falten las 2 confirmaciones")
     ap.add_argument("--sin-correo", action="store_true", help="solo generar el PPT y el PNG, sin el paso de correo")
-    carpeta_script = os.path.dirname(os.path.abspath(__file__))
     config = leer_configuracion(carpeta_script)
     ap.add_argument("--salida", default=config["salida"] or os.path.join(carpeta_script, "Reportes generados"),
                     help="carpeta donde guardar los PPT y PNG (por defecto: configuracion.txt o 'Reportes generados')")
@@ -1280,6 +1283,9 @@ def main():
 
     print(f"Reporte FEN · versión {VERSION}")
     print(f"  Script: {os.path.abspath(__file__)}")
+    if not os.path.exists(a.datos):
+        sys.exit(f"No encuentro el archivo de datos: {os.path.abspath(a.datos)}\n"
+                 "Ponle ese nombre a tu .txt o indica cuál usar al final del comando.")
     print(f"  Datos:  {os.path.abspath(a.datos)}")
     print(f"  Salida: {os.path.abspath(a.salida)}   (correo: {config['modo']})")
     d = leer_datos(a.datos)

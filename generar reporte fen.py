@@ -47,7 +47,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05d (agencias y sedes, nivel leve)"
+VERSION = "2026-11-05e (sedes afectadas)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -310,11 +310,11 @@ def resolver_sedes(d):
         d["sedes"] = f"Sin afectación en las {total} sedes revisadas." if total > 1 else \
             "Sin afectación en la sede revisada."
     elif len(afectadas) == 1:
-        d["sedes"] = f"{afectadas[0][0]}: {afectadas[0][1]}"
+        n, e = afectadas[0]
+        d["sedes"] = f"{n} – {e[:1].lower() + e[1:]}"
     else:
         nombres = [n for n, _ in afectadas]
-        d["sedes"] = f"Afectación en {len(afectadas)} de {total} sedes: " + ", ".join(nombres[:-1]) + \
-            " y " + nombres[-1] + "."
+        d["sedes"] = ", ".join(nombres[:-1]) + " y " + nombres[-1] + f" ({len(afectadas)} de {total})."
     return d
 
 
@@ -435,6 +435,14 @@ def _radar(dr, c, s):
     dr.ellipse((s*.28, s*.28, s*.72, s*.72), outline=c, width=w)
     dr.line((s*.50, s*.50, s*.80, s*.20), fill=c, width=w)
     dr.ellipse((s*.45, s*.45, s*.55, s*.55), fill=c)
+
+
+def _alerta(dr, c, s):
+    """Triángulo de alerta con signo de exclamación."""
+    w = s // 16
+    dr.polygon([(s*.50, s*.10), (s*.92, s*.86), (s*.08, s*.86)], outline=c, width=w)
+    dr.line((s*.50, s*.36, s*.50, s*.62), fill=c, width=w + 2)
+    dr.ellipse((s*.45, s*.70, s*.55, s*.80), fill=c)
 
 
 def _megafono(dr, c, s):
@@ -593,6 +601,7 @@ WARN_BG, WARN_FG = RGBColor(0xFF, 0xF1, 0xD6), RGBColor(0xA3, 0x5A, 0x00)
 COLORES_NIVEL = {"ok": (OK_BG, OK_FG), "leve": (WARN_BG, WARN_FG), "afectado": (BAD_BG, BAD_FG)}
 
 G_BLUE, G_PURPLE, G_PINK = (7, 152, 214), (123, 91, 168), (217, 47, 131)
+G_AMBER, G_RED = (214, 128, 0), (196, 18, 63)
 
 
 def recurso(nombre):
@@ -822,22 +831,30 @@ def construir(d, salida_pptx, borrador=False):
         col_w = resto / 2
         for j, (etq, ic, col, valor) in enumerate(impactos):
             cx = px + 2.25 + j * col_w
-            icono(slide, icono_circulo(ic, col), cx, py + 0.11, 0.38)
             v = valor or "Sin afectación reportada."
             af = nivel(v)
+            if af != "ok":
+                # Hay afectación: ícono de alerta (ámbar si es leve, rojo si es seria) y etiqueta explícita
+                ic, col = _alerta, (G_AMBER if af == "leve" else G_RED)
+                etq = "Sedes afectadas" if etq == "Sedes" else "Colaboradores afectados"
+            icono(slide, icono_circulo(ic, col), cx, py + 0.11, 0.38)
             ancho_chip = col_w - 0.56
             fs_chip = 9.5
             while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.36:
                 fs_chip -= 0.5
             chip(slide, cx + 0.46, py + 0.1, ancho_chip, 0.4, etq, v, af, fs_chip)
         if hay_agencias:
-            # Fila con cada agencia/sede revisada: punto verde (sin afectación), ámbar (leve o
-            # controlada) o rojo (con afectación). La fecha y el corte quedan en las notas del PPT.
-            partes = [("Agencias y sedes:  ", True, P_BLUE_DK)]
-            for n, e in d["agencias"]:
-                niv = nivel(e)
-                tinta = COLORES_NIVEL[niv][1]
-                partes += [("●\u00a0", False, tinta), (n + "   ", niv != "ok", P_INK if niv == "ok" else tinta)]
+            # Fila con las agencias/sedes SIN afectación (las afectadas ya se muestran arriba).
+            # La fecha y el corte del mensaje de agencias quedan en las notas del PPT.
+            ok = [n for n, e in d["agencias"] if nivel(e) == "ok"]
+            total = len(d["agencias"])
+            if not ok:
+                partes = [("Ninguna agencia o sede sin afectación.", True, BAD_FG)]
+            else:
+                rotulo = f"Sin afectación ({len(ok)}):  "
+                partes = [(rotulo, True, OK_FG)]
+                for n in ok:
+                    partes += [("●\u00a0", False, OK_FG), (n + "   ", False, P_INK)]
             ancho_ag = (pw - 0.4) * 72 * 0.97
             fs_ag = 9.5
             while fs_ag > 6.5 and sum(ancho_pt(t, fs_ag, b) for t, b, _ in partes) > ancho_ag:

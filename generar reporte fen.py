@@ -4,6 +4,10 @@ Genera el Reporte FEN de Pacífico Seguros en PowerPoint (.pptx) y en imagen (.p
 Uso:
     python generar_reporte_fen.py datos_fen.txt
     python generar_reporte_fen.py datos_fen.txt --borrador   (genera aunque falten confirmaciones)
+    python generar_reporte_fen.py datos_fen.txt --sin-correo (no pregunta por el correo)
+
+Correo: si existe destinatarios.txt junto al script, al final se abre el reporte para
+revisarlo y se pide el OK antes de enviarlo por Outlook (o abrir el borrador).
 
 Imágenes de marca en "recursos": logo_pacifico.png, torito.png y logo_continuidad.png.
 Fuente: Nunito (redondeada, afín al logo de Pacífico), en recursos/fuentes.
@@ -47,7 +51,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05e (sedes afectadas)"
+VERSION = "2026-11-05f (envío por correo con OK)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -973,6 +977,145 @@ def exportar_png(pptx_path, png_path):
     return "LibreOffice"
 
 
+# ================================================================ 6b. Correo (Outlook)
+def leer_destinatarios(ruta):
+    """Lee destinatarios.txt: líneas 'PARA: a@x.com; b@x.com' y 'CC: ...' (se pueden repetir).
+    Opcionales: 'SALUDO: ...' y 'FIRMA: ...'. Las líneas con # se ignoran."""
+    conf = {"para": [], "cc": [], "saludo": "Estimados:", "firma": "Saludos,"}
+    if not os.path.exists(ruta):
+        return conf
+    with open(ruta, encoding="utf-8-sig") as f:
+        for raw in f:
+            linea = raw.strip()
+            if not linea or linea.startswith("#"):
+                continue
+            k, sep, v = linea.partition(":")
+            k = k.strip().upper()
+            if not sep:
+                continue
+            if k in ("PARA", "TO"):
+                conf["para"] += [x.strip() for x in re.split(r"[;,]", v) if x.strip()]
+            elif k == "CC":
+                conf["cc"] += [x.strip() for x in re.split(r"[;,]", v) if x.strip()]
+            elif k == "SALUDO" and v.strip():
+                conf["saludo"] = v.strip()
+            elif k == "FIRMA" and v.strip():
+                conf["firma"] = v.strip()
+    return conf
+
+
+def armar_correo(d, conf):
+    """Devuelve (asunto, cuerpo_html). La imagen va incrustada con cid:reporte_fen."""
+    import html
+    corte = re.sub(r"^corte\s*:\s*", "", d["horario"], flags=re.I).strip()
+    asunto = f"Reporte FEN {d['numero']} – {d['fecha']}" + (f" – Corte {corte}" if corte else "")
+
+    def linea_impacto(etq, valor):
+        v = valor or "Sin afectación reportada."
+        niv = nivel(v)
+        color = {"ok": "#1E7A45", "leve": "#A35A00", "afectado": "#C4123F"}[niv]
+        if niv != "ok":
+            etq = "Sedes afectadas" if etq == "Sedes" else "Colaboradores afectados"
+        return (f'<li><b>{html.escape(etq)}:</b> <span style="color:{color}">'
+                f'{html.escape(v)}</span></li>')
+
+    cuerpo = f"""<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1E2A44">
+<p>{html.escape(conf['saludo'])}</p>
+<p>Se comparte el <b>Reporte FEN N.º {html.escape(d['numero'])}</b> del {html.escape(d['fecha'])}{
+    (' (corte ' + html.escape(corte) + ')') if corte else ''}.</p>
+<p><b>Impacto en Pacífico Seguros</b></p>
+<ul>{linea_impacto('Sedes', d['sedes'])}{linea_impacto('Colaboradores', d['colab'])}</ul>
+<p><img src="cid:reporte_fen" alt="Reporte FEN {html.escape(d['numero'])}" style="width:100%;max-width:960px"></p>
+<p>Se adjunta la presentación.</p>
+<p>{html.escape(conf['firma'])}</p>
+</div>"""
+    return asunto, cuerpo
+
+
+def enviar_outlook(asunto, cuerpo, para, cc, png_path, pptx_path, solo_borrador=False):
+    """Crea el correo en Outlook con la imagen incrustada y el PPT adjunto. Envía o abre el borrador."""
+    import win32com.client  # pip install pywin32
+    outlook = win32com.client.Dispatch("Outlook.Application")
+    mail = outlook.CreateItem(0)
+    mail.To = "; ".join(para)
+    mail.CC = "; ".join(cc)
+    mail.Subject = asunto
+    if png_path and os.path.exists(png_path):
+        adj = mail.Attachments.Add(os.path.abspath(png_path))
+        # Content-ID para mostrar la imagen dentro del correo
+        adj.PropertyAccessor.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x3712001F", "reporte_fen")
+    mail.Attachments.Add(os.path.abspath(pptx_path))
+    mail.HTMLBody = cuerpo
+    if solo_borrador:
+        mail.Display()
+    else:
+        mail.Send()
+
+
+def abrir_para_revisar(ruta):
+    """Abre el PNG (o el PPT) con el programa predeterminado para que lo revises."""
+    try:
+        if platform.system() == "Windows":
+            os.startfile(ruta)  # noqa: S606
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", ruta])
+        else:
+            subprocess.Popen(["xdg-open", ruta], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:  # noqa: BLE001
+        print(f"  (No se pudo abrir automáticamente; ábrelo tú: {ruta})")
+
+
+def paso_correo(d, pptx_path, png_path, carpeta_script, carpeta_salida, auto=None):
+    """Paso de validación: muestra el reporte, pide el OK y recién entonces envía el correo."""
+    conf = leer_destinatarios(os.path.join(carpeta_script, "destinatarios.txt"))
+    if not conf["para"]:
+        print("\nCorreo: no se envía porque destinatarios.txt no existe o no tiene ninguna línea 'PARA:'.")
+        return
+    if platform.system() != "Windows":
+        print("\nCorreo: el envío usa Outlook de Windows; en este equipo no está disponible.")
+        return
+
+    asunto, cuerpo = armar_correo(d, conf)
+    revisar = png_path if (png_path and os.path.exists(png_path)) else pptx_path
+    print("\n" + "=" * 70)
+    print("REVISIÓN ANTES DE ENVIAR")
+    print(f"  Se abrió el reporte para que lo revises: {os.path.basename(revisar)}")
+    print(f"  Asunto: {asunto}")
+    print(f"  Para:   {'; '.join(conf['para'])}")
+    if conf["cc"]:
+        print(f"  CC:     {'; '.join(conf['cc'])}")
+    print("=" * 70)
+    abrir_para_revisar(revisar)
+
+    if auto is None:
+        resp = ""
+        while resp not in ("s", "b", "n"):
+            resp = input("¿Das el OK?  [s] enviar ahora   [b] abrir borrador en Outlook   [n] no enviar: ")
+            resp = resp.strip().lower()[:1]
+    else:
+        resp = auto
+
+    if resp == "n":
+        print("No se envió el correo. El PPT y el PNG quedan en 'Reportes generados'.")
+        return
+    try:
+        enviar_outlook(asunto, cuerpo, conf["para"], conf["cc"], png_path, pptx_path, solo_borrador=(resp == "b"))
+    except Exception as e:  # noqa: BLE001
+        print(f"No se pudo crear el correo en Outlook: {e}")
+        print("Revisa que Outlook esté abierto y con tu cuenta iniciada, y vuelve a intentarlo.")
+        return
+    accion = "Correo ENVIADO" if resp == "s" else "Borrador abierto en Outlook (envíalo desde ahí)"
+    print(f"{accion}: {asunto}")
+    # Registro de envíos
+    try:
+        with open(os.path.join(carpeta_salida, "registro_envios.txt"), "a", encoding="utf-8") as f:
+            conf_por = " y ".join(c for c in d["conf"] if c)
+            f.write(f"{datetime.now():%d/%m/%Y %H:%M} | {accion.split(' (')[0]} | {asunto} | "
+                    f"Para: {'; '.join(conf['para'])} | CC: {'; '.join(conf['cc'])} | Confirmado por: {conf_por}\n")
+    except OSError:
+        pass
+
+
 # ================================================================ 7. Principal
 def instalar_fuentes():
     """En Windows, instala Nunito para el usuario actual (sin permisos de administrador) si aún no está."""
@@ -1016,6 +1159,7 @@ def main():
     ap = argparse.ArgumentParser(description="Genera el Reporte FEN de Pacífico en PPTX y PNG.")
     ap.add_argument("datos", help="archivo de datos (ver datos_fen.txt)")
     ap.add_argument("--borrador", action="store_true", help="generar aunque falten las 2 confirmaciones")
+    ap.add_argument("--sin-correo", action="store_true", help="solo generar el PPT y el PNG, sin el paso de correo")
     carpeta_script = os.path.dirname(os.path.abspath(__file__))
     ap.add_argument("--salida", default=os.path.join(carpeta_script, "Reportes generados"),
                     help="carpeta donde guardar los PPT y PNG (por defecto: 'Reportes generados' junto al script)")
@@ -1072,6 +1216,14 @@ def main():
     else:
         print("No se generó el PNG: instala PowerPoint + pywin32 (Windows) o LibreOffice. "
               "Mientras tanto, en PowerPoint: Archivo > Exportar > PNG.")
+
+    # Paso de validación y envío por correo
+    if a.sin_correo:
+        return
+    if len(confirmados) < 2:
+        print("\nEs un BORRADOR (faltan confirmaciones): no se ofrece el envío por correo.")
+        return
+    paso_correo(d, pptx_path, png_path if motor else None, carpeta_script, a.salida)
 
 
 if __name__ == "__main__":

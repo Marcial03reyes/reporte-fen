@@ -47,7 +47,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05 (agencias y sedes, nivel leve)"
+VERSION = "2026-11-05d (agencias y sedes, nivel leve)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -233,8 +233,11 @@ def _leer_whatsapp(lineas, d):
             continue
 
         # Dentro del mensaje de agencias de Pacífico, fecha/corte/resumen son de ese mensaje
+        # Dos puntos "de etiqueta" (Tumbes: ...), sin contar los de una hora como 13:00
+        sep_etq = re.search(r"(?<!\d):(?!\d)", linea.rstrip(":")) is not None
+
         if actual == "agencias" and not (not _es_vineta(raw) and _tipo_seccion(linea) not in (None, "agencias")
-                                         and (linea.endswith(":") or not sep)):
+                                         and (linea.endswith(":") or not sep_etq)):
             _linea_agencia(d, linea)
             continue
 
@@ -260,12 +263,14 @@ def _leer_whatsapp(lineas, d):
             continue
 
         # ¿Es un título de sección? (no lleva viñeta y no tiene texto después de los dos puntos)
-        es_titulo = (not _es_vineta(raw)) and len(linea) <= 90 and (linea.endswith(":") or not sep)
+        es_titulo = (not _es_vineta(raw)) and len(linea) <= 90 and (
+            linea.endswith(":") or not sep_etq or re.match(r"pron[oó]stico\b", low) is not None)
         if es_titulo:
             tipo = _tipo_seccion(linea)
             if tipo == "pronostico":
                 actual = "p1" if not d["p1"] else "p2"
                 titulo = re.sub(r"^pron[oó]stico\s*[–\-:]*\s*", "", linea, flags=re.I).rstrip(":").strip()
+                titulo = re.sub(r"\s+", " ", re.sub(r"(\S)\(", r"\1 (", titulo))   # "HOY(Hasta" -> "HOY (Hasta"
                 d[actual + "_titulo"] = titulo.upper() if titulo else "PRONÓSTICO"
             elif tipo:
                 actual = tipo
@@ -710,18 +715,18 @@ def construir(d, salida_pptx, borrador=False):
     EXTRA_AG = 0.27 if hay_agencias else 0.0      # fila de agencias dentro del panel de impacto
     Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG
     ry0, ry1 = TOP + HEAD + 0.16, 6.02
-    MIN_FS = 8.0
+    MIN_FS = 7.5
 
     def alto_tit(t, ancho, s=13):
         return contar_lineas("", t.upper(), s, ancho * 72 * 0.995) * s * 1.2 / 72 + 0.08
 
     def fs_izq(LW, y1):
         lw = LW - 0.86 - 0.28
-        need = lambda f: sum(0.34 + alto_lista(it, f, lw) + 0.12 for *_, it in secs)
+        need = lambda f: sum(ESP[0] + alto_lista(it, f, lw) + ESP[1] for *_, it in secs)
         fs = 12.0
         while fs > MIN_FS and need(fs) > y1 - y0:
             fs -= 0.5
-        return fs, need(fs) <= y1 - y0
+        return fs, need(fs) <= y1 - y0, max(0.0, need(fs) - (y1 - y0))
 
     def fs_der(RW):
         rw = RW - 0.56
@@ -729,31 +734,41 @@ def construir(d, salida_pptx, borrador=False):
         fs = 12.0
         while fs > MIN_FS and need(fs) > ry1 - ry0:
             fs -= 0.5
-        return fs, need(fs) <= ry1 - ry0
+        return fs, need(fs) <= ry1 - ry0, max(0.0, need(fs) - (ry1 - ry0))
 
     LX, GAP, ANCHO_TOTAL = 0.5, 0.22, 12.33
 
     def elegir(y1):
         mejor = None
-        for LW in (7.75, 8.15, 8.55, 8.95, 7.35, 6.95, 6.55):
+        # Reparte el ancho entre columnas: primero que todo entre; luego, la letra más grande;
+        # si no entra en ningún reparto, el que menos se desborde.
+        for LW in (7.75, 8.0, 8.25, 8.5, 8.75, 9.0, 9.25, 9.5, 7.5, 7.25, 7.0, 6.75, 6.5):
             RW = ANCHO_TOTAL - LW - GAP
-            (a, ok_a), (b, ok_b) = fs_izq(LW, y1), fs_der(RW)
-            clave = (ok_a and ok_b, min(a, b), -abs(LW - 7.75))
+            (a, ok_a, ov_a), (b, ok_b, ov_b) = fs_izq(LW, y1), fs_der(RW)
+            ok = ok_a and ok_b
+            clave = (ok, min(a, b) if ok else -(ov_a + ov_b), -abs(LW - 7.75))
             if mejor is None or clave > mejor[0]:
                 mejor = (clave, LW, RW, a, b)
         return mejor
 
     compacto = True                     # un solo diseño: impacto en una fila
+    # Espacio de cada sección de la izquierda: (título → lista, entre secciones).
+    # Si con el espaciado normal no entra, se prueba uno más compacto.
+    ESPACIADOS = ((0.34, 0.12), (0.30, 0.07))
+    ESP = ESPACIADOS[0]
     # "Medidas" (cuando viene) va a la columna donde deje la letra más grande
     opciones = [(secs_base, bloques_base)]
     if sec_medidas:
         opciones = [(secs_base + [sec_medidas], bloques_base), (secs_base, bloques_base + [blq_medidas])]
     mejor = None
-    for secs, bloques in opciones:
-        m = elegir(Y1_COMPACTO)
-        if mejor is None or m[0] > mejor[0][0]:
-            mejor = (m, secs, bloques)
-    (m, secs, bloques) = mejor
+    for ESP in ESPACIADOS:
+        for secs, bloques in opciones:
+            m = elegir(Y1_COMPACTO)
+            if mejor is None or m[0] > mejor[0][0]:
+                mejor = (m, secs, bloques, ESP)
+        if mejor[0][0][0] and mejor[0][0][1] >= 9:      # entra con letra legible: no compactar
+            break
+    (m, secs, bloques, ESP) = mejor
     (cabe, _, _), LW, RW, fs, fs2 = m
     RX = LX + LW + GAP
 
@@ -772,13 +787,13 @@ def construir(d, salida_pptx, borrador=False):
     lista_x, lista_w = LX + 0.86, LW - 0.86 - 0.28
     y = y0
     for i, (titulo, ic, col, items) in enumerate(secs):
-        icono(slide, icono_circulo(ic, col), LX + 0.3, y - 0.02, 0.4)
+        icono(slide, icono_circulo(ic, col), LX + 0.3, y - 0.02, 0.4 if ESP[0] >= 0.34 else 0.36)
         texto(slide, lista_x, y + 0.02, lista_w, 0.26, titulo, 12.5, P_INK, True)
         h = alto_lista(items, fs, lista_w)
-        vinetas(slide, lista_x, y + 0.34, lista_w, h + 0.02, items, fs, "Lista " + titulo.lower())
-        y += 0.34 + h + 0.12
+        vinetas(slide, lista_x, y + ESP[0], lista_w, h + 0.02, items, fs, "Lista " + titulo.lower())
+        y += ESP[0] + h + ESP[1]
         if i < len(secs) - 1:
-            linea_h(slide, lista_x, LX + LW - 0.28, y - 0.06)
+            linea_h(slide, lista_x, LX + LW - 0.28, y - ESP[1] / 2)
 
     # ---- Impacto en Pacífico (panel tenue con estados en chip)
     impactos = (("Sedes", _edificio, G_BLUE, d["sedes"]),

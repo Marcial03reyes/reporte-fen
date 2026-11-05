@@ -47,7 +47,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-04b (Medidas + agencias)"
+VERSION = "2026-11-05 (agencias y sedes, nivel leve)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -84,6 +84,17 @@ def _vacio():
 
 
 SIN_AFECTACION = re.compile(r"^(sin\s+(afectaci|impacto|novedad|da[ñn]o|incidencia)|operativ|normal)", re.I)
+
+
+LEVE = re.compile(r"controlad|leve|menor|pequeñ|pequen|m[ií]nim|sin impacto en la (operaci|atenci)|"
+                  r"operativ|atenci[oó]n normal", re.I)
+
+
+def nivel(valor):
+    """'ok' (sin afectación), 'leve' (afectación menor o controlada) o 'afectado'."""
+    if not es_afectado(valor):
+        return "ok"
+    return "leve" if LEVE.search(valor) else "afectado"
 
 
 def es_afectado(valor):
@@ -291,13 +302,13 @@ def resolver_sedes(d):
     afectadas = [(n, e) for n, e in d["agencias"] if es_afectado(e)]
     total = len(d["agencias"])
     if not afectadas:
-        d["sedes"] = f"Sin afectación en las {total} agencias de provincia." if total > 1 else \
-            "Sin afectación en agencias de provincia."
+        d["sedes"] = f"Sin afectación en las {total} sedes revisadas." if total > 1 else \
+            "Sin afectación en la sede revisada."
     elif len(afectadas) == 1:
         d["sedes"] = f"{afectadas[0][0]}: {afectadas[0][1]}"
     else:
         nombres = [n for n, _ in afectadas]
-        d["sedes"] = f"Afectación en {len(afectadas)} de {total} agencias: " + ", ".join(nombres[:-1]) + \
+        d["sedes"] = f"Afectación en {len(afectadas)} de {total} sedes: " + ", ".join(nombres[:-1]) + \
             " y " + nombres[-1] + "."
     return d
 
@@ -573,6 +584,8 @@ P_TINT = RGBColor(0xE9, 0xF3, 0xFB)
 P_LINE = RGBColor(0xDD, 0xE6, 0xF0)
 OK_BG, OK_FG = RGBColor(0xE4, 0xF4, 0xEA), RGBColor(0x1E, 0x7A, 0x45)
 BAD_BG, BAD_FG = RGBColor(0xFD, 0xE7, 0xEE), RGBColor(0xC4, 0x12, 0x3F)
+WARN_BG, WARN_FG = RGBColor(0xFF, 0xF1, 0xD6), RGBColor(0xA3, 0x5A, 0x00)
+COLORES_NIVEL = {"ok": (OK_BG, OK_FG), "leve": (WARN_BG, WARN_FG), "afectado": (BAD_BG, BAD_FG)}
 
 G_BLUE, G_PURPLE, G_PINK = (7, 152, 214), (123, 91, 168), (217, 47, 131)
 
@@ -644,7 +657,10 @@ def imagen_ajustada(slide, ruta, x, y, alto=None, ancho=None):
 
 
 def chip(slide, x, y, w, h, etiqueta, valor, afectado, size):
-    fondo, tinta = (BAD_BG, BAD_FG) if afectado else (OK_BG, OK_FG)
+    """afectado: True/False o un nivel ('ok', 'leve', 'afectado')."""
+    niv = afectado if isinstance(afectado, str) else ("afectado" if afectado else "ok")
+    fondo, tinta = COLORES_NIVEL[niv]
+    afectado = niv != "ok"
     c = caja(slide, x, y, w, h, fondo, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Estado " + etiqueta.lower())
     c.adjustments[0] = 0.5
     partes = [[(etiqueta + ": ", True, P_INK), (valor, afectado, tinta)]] if etiqueta else [[(valor, True, tinta)]]
@@ -793,27 +809,26 @@ def construir(d, salida_pptx, borrador=False):
             cx = px + 2.25 + j * col_w
             icono(slide, icono_circulo(ic, col), cx, py + 0.11, 0.38)
             v = valor or "Sin afectación reportada."
-            af = es_afectado(v)
+            af = nivel(v)
             ancho_chip = col_w - 0.56
             fs_chip = 9.5
             while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.36:
                 fs_chip -= 0.5
             chip(slide, cx + 0.46, py + 0.1, ancho_chip, 0.4, etq, v, af, fs_chip)
         if hay_agencias:
-            # Fila con cada agencia revisada: punto verde (sin afectación) o rojo (con afectación)
-            f_ag = re.sub(r"^(\d{1,2}/\d{1,2})/\d{2,4}$", r"\1", d["ag_fecha"].strip())
-            c_ag = re.sub(r"\s*(horas|hrs?|h)\.?$", "", d["ag_corte"].strip(), flags=re.I)
-            extra = ", ".join(x for x in (f_ag, c_ag) if x)
-            partes = [("Agencias provincia" + (f" ({extra})" if extra else "") + ":  ", True, P_BLUE_DK)]
+            # Fila con cada agencia/sede revisada: punto verde (sin afectación), ámbar (leve o
+            # controlada) o rojo (con afectación). La fecha y el corte quedan en las notas del PPT.
+            partes = [("Agencias y sedes:  ", True, P_BLUE_DK)]
             for n, e in d["agencias"]:
-                af = es_afectado(e)
-                partes += [("●\u00a0", False, BAD_FG if af else OK_FG), (n + "   ", af, BAD_FG if af else P_INK)]
+                niv = nivel(e)
+                tinta = COLORES_NIVEL[niv][1]
+                partes += [("●\u00a0", False, tinta), (n + "   ", niv != "ok", P_INK if niv == "ok" else tinta)]
             ancho_ag = (pw - 0.4) * 72 * 0.97
             fs_ag = 9.5
             while fs_ag > 6.5 and sum(ancho_pt(t, fs_ag, b) for t, b, _ in partes) > ancho_ag:
                 fs_ag -= 0.5
             texto(slide, px + 0.2, py + 0.58, pw - 0.4, 0.22, [partes], fs_ag, anchor=MSO_ANCHOR.MIDDLE,
-                  nombre="Agencias provincia")
+                  nombre="Agencias y sedes")
 
     # ---- Columna derecha: pronóstico
     rl_x, rl_w = RX + 0.28, RW - 0.56
@@ -855,7 +870,7 @@ def construir(d, salida_pptx, borrador=False):
     conf = [c for c in d["conf"] if c]
     slide.notes_slide.notes_text_frame.text = (
         ("Confirmado sin afectados por: " + " y ".join(conf)) if conf else "Sin confirmaciones registradas."
-    ) + (("\nAgencias de provincia" + (f" (corte {d['ag_corte']}, {d['ag_fecha']})" if d["ag_corte"] else "") + ":\n"
+    ) + (("\nAgencias y sedes" + (f" (corte {d['ag_corte']}, {d['ag_fecha']})" if d["ag_corte"] else "") + ":\n"
           + "\n".join(f"  - {n}: {e}" for n, e in d["agencias"])) if d["agencias"] else "") \
       + f"\nGenerado el {datetime.now():%d/%m/%Y %H:%M}."
 
@@ -983,7 +998,7 @@ def main():
           + (f" · {len(d['medidas'])} medidas" if d["medidas"] else ""))
     if d["agencias"]:
         af = [n for n, e in d["agencias"] if es_afectado(e)]
-        print(f"Agencias Pacífico: {len(d['agencias'])} revisadas, "
+        print(f"Agencias/sedes Pacífico: {len(d['agencias'])} revisadas, "
               + (f"{len(af)} con afectación ({', '.join(af)})." if af else "ninguna con afectación."))
     for campo, nombre in (("lluvias", "LLUVIAS"), ("vias", "VÍAS RESTRINGIDAS"), ("rios", "RÍOS Y QUEBRADAS")):
         if not d[campo]:

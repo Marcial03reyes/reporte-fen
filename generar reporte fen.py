@@ -51,7 +51,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05f (envío por correo con OK)"
+VERSION = "2026-11-05g (correo desde buzón de Continuidad)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -981,7 +981,7 @@ def exportar_png(pptx_path, png_path):
 def leer_destinatarios(ruta):
     """Lee destinatarios.txt: líneas 'PARA: a@x.com; b@x.com' y 'CC: ...' (se pueden repetir).
     Opcionales: 'SALUDO: ...' y 'FIRMA: ...'. Las líneas con # se ignoran."""
-    conf = {"para": [], "cc": [], "saludo": "Estimados:", "firma": "Saludos,"}
+    conf = {"desde": "", "para": [], "cc": [], "saludo": "Estimados:", "firma": "Saludos,"}
     if not os.path.exists(ruta):
         return conf
     with open(ruta, encoding="utf-8-sig") as f:
@@ -993,7 +993,9 @@ def leer_destinatarios(ruta):
             k = k.strip().upper()
             if not sep:
                 continue
-            if k in ("PARA", "TO"):
+            if k in ("DESDE", "DE", "FROM", "BUZON", "BUZÓN"):
+                conf["desde"] = v.strip()
+            elif k in ("PARA", "TO"):
                 conf["para"] += [x.strip() for x in re.split(r"[;,]", v) if x.strip()]
             elif k == "CC":
                 conf["cc"] += [x.strip() for x in re.split(r"[;,]", v) if x.strip()]
@@ -1032,11 +1034,29 @@ def armar_correo(d, conf):
     return asunto, cuerpo
 
 
-def enviar_outlook(asunto, cuerpo, para, cc, png_path, pptx_path, solo_borrador=False):
-    """Crea el correo en Outlook con la imagen incrustada y el PPT adjunto. Envía o abre el borrador."""
+def enviar_outlook(asunto, cuerpo, para, cc, png_path, pptx_path, solo_borrador=False, desde=""):
+    """Crea el correo en Outlook con la imagen incrustada y el PPT adjunto. Envía o abre el borrador.
+    desde: buzón remitente (p. ej. el de Continuidad). Si ese buzón está agregado como cuenta en
+    Outlook se usa esa cuenta; si no, se envía "en nombre de" / "como" el buzón (requiere permiso)."""
     import win32com.client  # pip install pywin32
     outlook = win32com.client.Dispatch("Outlook.Application")
     mail = outlook.CreateItem(0)
+    if desde:
+        cuenta = None
+        for acc in outlook.Session.Accounts:
+            try:
+                if (acc.SmtpAddress or "").lower() == desde.lower():
+                    cuenta = acc
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+        if cuenta is not None:
+            try:
+                mail.SendUsingAccount = cuenta
+            except Exception:  # noqa: BLE001  (algunas versiones de pywin32 lo requieren así)
+                mail._oleobj_.Invoke(*(64209, 0, 8, 0, cuenta))
+        else:
+            mail.SentOnBehalfOfName = desde
     mail.To = "; ".join(para)
     mail.CC = "; ".join(cc)
     mail.Subject = asunto
@@ -1071,6 +1091,9 @@ def paso_correo(d, pptx_path, png_path, carpeta_script, carpeta_salida, auto=Non
     if not conf["para"]:
         print("\nCorreo: no se envía porque destinatarios.txt no existe o no tiene ninguna línea 'PARA:'.")
         return
+    if not conf["desde"]:
+        print("\nCorreo: no se envía porque falta la línea 'DESDE:' (buzón de Continuidad) en destinatarios.txt.")
+        return
     if platform.system() != "Windows":
         print("\nCorreo: el envío usa Outlook de Windows; en este equipo no está disponible.")
         return
@@ -1080,6 +1103,7 @@ def paso_correo(d, pptx_path, png_path, carpeta_script, carpeta_salida, auto=Non
     print("\n" + "=" * 70)
     print("REVISIÓN ANTES DE ENVIAR")
     print(f"  Se abrió el reporte para que lo revises: {os.path.basename(revisar)}")
+    print(f"  Desde:  {conf['desde']}")
     print(f"  Asunto: {asunto}")
     print(f"  Para:   {'; '.join(conf['para'])}")
     if conf["cc"]:
@@ -1099,19 +1123,23 @@ def paso_correo(d, pptx_path, png_path, carpeta_script, carpeta_salida, auto=Non
         print("No se envió el correo. El PPT y el PNG quedan en 'Reportes generados'.")
         return
     try:
-        enviar_outlook(asunto, cuerpo, conf["para"], conf["cc"], png_path, pptx_path, solo_borrador=(resp == "b"))
+        enviar_outlook(asunto, cuerpo, conf["para"], conf["cc"], png_path, pptx_path,
+                       solo_borrador=(resp == "b"), desde=conf["desde"])
     except Exception as e:  # noqa: BLE001
         print(f"No se pudo crear el correo en Outlook: {e}")
         print("Revisa que Outlook esté abierto y con tu cuenta iniciada, y vuelve a intentarlo.")
         return
     accion = "Correo ENVIADO" if resp == "s" else "Borrador abierto en Outlook (envíalo desde ahí)"
-    print(f"{accion}: {asunto}")
+    print(f"{accion}: {asunto}  (desde {conf['desde']})")
+    if resp == "s":
+        print("  Si en unos minutos te llega un aviso de 'no tiene permiso para enviar en nombre de…', "
+              "tu usuario aún no tiene permiso sobre el buzón (ver destinatarios.txt).")
     # Registro de envíos
     try:
         with open(os.path.join(carpeta_salida, "registro_envios.txt"), "a", encoding="utf-8") as f:
             conf_por = " y ".join(c for c in d["conf"] if c)
             f.write(f"{datetime.now():%d/%m/%Y %H:%M} | {accion.split(' (')[0]} | {asunto} | "
-                    f"Para: {'; '.join(conf['para'])} | CC: {'; '.join(conf['cc'])} | Confirmado por: {conf_por}\n")
+                    f"Desde: {conf['desde']} | Para: {'; '.join(conf['para'])} | CC: {'; '.join(conf['cc'])} | Confirmado por: {conf_por}\n")
     except OSError:
         pass
 

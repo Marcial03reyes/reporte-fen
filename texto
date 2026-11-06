@@ -1,57 +1,50 @@
 # Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
 # ============================================================
 #  1) Borra el ejemplo y pega aquí el mensaje del Reporte FEN, tal cual llegó por WhatsApp.
-#     Si trae "Medidas", se incluye sola; si no la trae, no pasa nada.
+#     Si trae "Medidas" o "Recomendaciones", se incluyen solas; si no, no pasa nada.
 # ============================================================
 
-🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*
-📅 *Fecha:* 04/11/2026
-🕕 *Corte:* 15:00 horas
+🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL
+📅 Fecha: 06/11/2026
+🕘 Corte: 08:30 horas
 
-⛈️ *Lluvias reportadas* 
+⛈️ Lluvias reportadas:
 
-▪️ *Tumbes y Piura:* Lluvias ligeras en Tumbes y moderadas en Piura zonas altas de Tambogrande.
-▪️ *Cajamarca* :  Lluvias moderadas en la ciudad con presencia de relampagos en zonas altas.
-▪️ *Ancash* : Lluvias moderadas con presencia de relampagos en zonas altas de Huaraz.
-▪️ *Amazonas y San Martin:* Lluvias moderadas en Tarapoto, Chachapoyas (zonas agricolas). En Moyobamba comienzan lluvias ligeras con presencia de relámpagos en zonas altas.
-▪️ *Huanuco y Pasco :*  Lluvias ligeras en Tingo Maria y Oxapampa (zonas agricolas)
-▪️ *Chiclayo y Trujillo:* Lluvias ligeras en zonas altas.
-▪️ *Junin* : Lluvias moderadas en la Huancayo y zonas altas con presencia de relampagos.
-▪️ *Lima:* Lluvias ligeras en Chosica y zonas altas de Matucana.
+▪️ Piura: lluvias moderadas en Ayabaca, Tambogrande y ciudad de Piura.
 
-🏞️ *Ríos y quebradas:*
+▪️ Ancash: lluvias intensas en Pampas - Ancash.
+▪️San Martín: lluvias intensas en Tarapoto, Nueva Cajamarca, Juanjui y Rioja.
 
-▪️ Huanuco - Leoncio Prado - Tingo Maria (deslizamiento de lodo) con afectación en vías rurales.
+🏞️ Ríos y quebradas:
 
-▪️ Lima - Chosica - Cajamarquilla en la zona de Unión Progreso, activacion de quebrada (afectacion en algunas casa cercanas del poblado Cajamarquilla)
+▪️ s/n
 
-🚧 *Vías restringidas:*
+🚧 Vías restringidas:
 
-▪️ *Ucayali:* Carretera Federico Basadre (PE-5N), sector Santa Rosa (km 441+120 al 441+350), interrumpida en ambos sentidos. Se perdieron 140 m de plataforma y Provías trabaja con 9 máquinas en dos frentes. Ruta alterna por Villa Rica.
+▪️ Piura: Carretera Paimas–Ayabaca (PE-1NT), km 70 al 80, por lluvias y trabajos de perfilado y aporte de material. Tránsito restringido en ambos sentidos de manera alternada.
 
-▪️ *Cajamarca:* Carretera Longitudinal de la Sierra Norte, km 68 (límite con Piura). Tránsito parcial de vehículos y peatones; puede cambiar según la intensidad de las lluvias.
+▪️ Piura: Carretera La Matanza–Huancabamba, sector Salitral (km 53 al 54), por desborde del río Serrán. Tránsito parcialmente restringido.
 
-▪️ *Piura:* Carretera La Matanza–Huancabamba, sin reporte de reapertura.
+▪️ Ucayali: Carretera Longitudinal de la Selva Norte (PE-5N), sector Padre Abad (km 441+350), por deslizamiento de lodo y piedras. Vía interrumpida en ambos sentidos.
 
-📡 *PRONÓSTICO – HOY*(Hasta 13:00 hrs de mañana 5/11)
+📡 PRONÓSTICO – HOY
 
- *SIERRA* : Se prevén precipitaciones de moderada a extrema intensidad en la sierra norte y de moderada intensidad en la sierra centro y sur. Estos eventos podrían estar acompañados de descargas eléctricas y ráfagas de viento. Asimismo, se prevé la ocurrencia de granizo en localidades ubicadas por encima de los 2800 m s. n. m. de la sierra centro y sur.
+▪️ COSTA: Se prevén lluvias de moderada a extrema intensidad en Tumbes y la costa interior de Piura. Por otro lado, en la costa centro y sur se presentarían lloviznas de ligera a fuerte intensidad.
 
- *SELVA* : Se prevén lluvias y/o chubascos de ligera intensidad, en la selva alta centro y sur, principalmente. Acompañados de descargas eléctricas y ráfagas de viento. Estos eventos tendrían mayor probabilidad de ocurrencia durante las horas de la tarde, noche y madrugada.
+▪️ SIERRA: Se prevén precipitaciones de moderada a extrema intensidad en la sierra norte y de moderada intensidad en la sierra centro y sur. Estos eventos podrían estar acompañados de descargas eléctricas y ráfagas de viento. Asimismo, se prevé la ocurrencia de granizo en localidades ubicadas por encima de los 2800 m s. n. m. de la sierra centro y sur.
 
- *COSTA* : Se prevén lluvias/lluvia de moderada a extrema intensidad en Tumbes y la costa interior de Piura. Por otro lado, en la costa centro y sur se presentarían lloviznas de ligera a fuerte intensidad.
+▪️ SELVA: Se prevén lluvias y/o chubascos de ligera intensidad en la selva alta centro y sur, principalmente. Estarían acompañados de descargas eléctricas y ráfagas de viento, con mayor probabilidad durante las horas de la tarde, noche y madrugada.
 
-_Se mantiene el monitoreo._
+📡 Se mantiene el monitoreo.
 
 # ============================================================
 #  2) (Opcional) Pega aquí el mensaje de agencias de Pacífico, tal cual llegó.
-#     Con él se completa "Sedes" (verde: sin afectación, ámbar: leve, rojo: seria).
-#     Si no llegó, borra esta parte o déjala vacía.
+#     Si no llegó, deja esta parte vacía.
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS PACIFICO*
-📅*Fecha: 05/11/2026*
-🕕*Corte: 09:30 horas*
+📅*Fecha: 06/11/2026*
+🕕*Corte: 09:50 horas*
 
 * Piura: Sin afectaciones reportadas.
 * Chiclayo: Sin afectaciones reportadas.
@@ -60,29 +53,30 @@ _Se mantiene el monitoreo._
 * Arequipa (Yanahuara): Sin afectaciones reportadas.
 * Arequipa (Cayma): Sin afectaciones reportadas.
 * Cusco: Sin afectaciones reportadas.
-* Edificios Lima: Pequeñas filtraciones, situacion controlada
+* Edificios Lima: Sin afectaciones reportadas, levantando preventivos por filtraciones de la semana
 
-*Resumen: Provincia Sin afectaciones reportadas, Lima filtraciones controladas*
+*Resumen: Provincia y Lima Sin afectaciones reportadas*
 
-Saludos,
+Saludos,.
 
 # ------------------- DATOS DE PACÍFICO (no borrar) -------------------
 # NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
-# Persona 1 y 2: escribe el nombre cuando cada una confirme por WhatsApp.
-#   Sin las dos confirmaciones no se genera el reporte ni se envía el correo.
 [CONFIRMACIONES]
-NUMERO:
-Persona 1:
-Persona 2:
+NUMERO: 003
+Persona 1: Paola
+Persona 2: Elizabeth
 
 # Colaboradores afectados: un caso por línea, con el formato  Lugar: detalle  (corto).
-#   Si no hay casos, deja la sección vacía.  Ejemplos:
-#   Lima: 5 colaboradores con filtraciones en sus viviendas, en evaluación.
-#   Chiclayo: 1 colaboradora con dengue, en vigilancia médica.
+#   Si no hay casos, deja la sección vacía.
 [COLABORADORES AFECTADOS]
+Lima: 5 colaboradores con filtraciones en sus viviendas, en evaluación para gestionar apoyo según criticidad.
+Chiclayo: 1 colaboradora con diagnóstico de dengue, en vigilancia médica.
 
 # Sedes: si pegaste el mensaje de agencias, se completa solo. Escribe aquí solo si hay una afectación.
 # Colaboradores: si llenaste [COLABORADORES AFECTADOS], se completa solo.
 [IMPACTO PACIFICO]
 Sedes: Sin afectación reportada.
 Colaboradores: Sin afectación reportada.
+
+[PIE DE PAGINA]
+Pacífico Seguros

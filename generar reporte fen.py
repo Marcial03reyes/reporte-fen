@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-06 (vigencia + recomendaciones)"
+VERSION = "2026-11-06b (sin notas en el PPT)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -928,13 +928,7 @@ def construir(d, salida_pptx, borrador=False):
         w, _ = imagen_ajustada(slide, recurso("torito.png"), 0, 6.88, alto=0.62)
         slide.shapes[-1].left = Inches(x_logo - w)
 
-    # Notas: trazabilidad de confirmaciones
-    conf = [c for c in d["conf"] if c]
-    slide.notes_slide.notes_text_frame.text = (
-        ("Confirmado sin afectados por: " + " y ".join(conf)) if conf else "Sin confirmaciones registradas."
-    ) + (("\nAgencias y sedes" + (f" (corte {d['ag_corte']}, {d['ag_fecha']})" if d["ag_corte"] else "") + ":\n"
-          + "\n".join(f"  - {n}: {e}" for n, e in d["agencias"])) if d["agencias"] else "") \
-      + f"\nGenerado el {datetime.now():%d/%m/%Y %H:%M}."
+    # Sin notas en la diapositiva (el PPT se comparte tal cual)
 
     prs.save(salida_pptx)
 

@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05l (PPT desde OneDrive)"
+VERSION = "2026-11-06 (vigencia + recomendaciones)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -75,6 +75,8 @@ SECCIONES = {
     "PIE DE PAGINA": "pie",
     "PIE DE PÁGINA": "pie",
     "MEDIDAS": "medidas",
+    "RECOMENDACIONES": "recomendaciones",
+    "RECOMENDACIONES PREVENTIVAS": "recomendaciones",
     "AGENCIAS": "agencias",
     "AGENCIAS PACIFICO": "agencias",
     "AGENCIAS PACÍFICO": "agencias",
@@ -84,7 +86,7 @@ SECCIONES = {
 def _vacio():
     return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [],
             "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
-            "conf": [], "sedes": "", "colab": "", "pie": [], "medidas": [],
+            "conf": [], "sedes": "", "colab": "", "pie": [], "medidas": [], "recomendaciones": [], "vigencia": "",
             "agencias": [], "ag_fecha": "", "ag_corte": "", "ag_resumen": ""}
 
 
@@ -181,10 +183,13 @@ def _limpiar(linea):
 
 
 def _etiqueta_bonita(linea):
-    """'SIERRA: Se prevén...' -> 'Sierra: Se prevén...'"""
+    """'SIERRA: Se prevén...' -> 'Sierra: ...';  'LIMA METROPOLITANA: ...' -> 'Lima Metropolitana: ...'"""
     etq, sep, resto = linea.partition(":")
     if sep and etq.isupper() and len(etq) <= 40:
-        return etq.strip().capitalize() + ": " + resto.strip()
+        menores = {"y", "e", "de", "del", "la", "las", "los", "el", "en", "a"}
+        palabras = etq.strip().lower().split()
+        etq = " ".join(w if (i and w in menores) else w[:1].upper() + w[1:] for i, w in enumerate(palabras))
+        return etq + ": " + resto.strip()
     return linea
 
 
@@ -209,6 +214,8 @@ def _tipo_seccion(titulo):
         return "agencias"           # mensaje de agencias de Pacífico (alimenta "Sedes")
     if hay(r"pron[oó]stico"):
         return "pronostico"
+    if hay(r"recomendaci[oó]n|recomendaciones|prevenci[oó]n|preventivas?"):
+        return "recomendaciones"
     if hay(r"medidas|acciones|disposiciones"):
         return "medidas"
     if hay(r"impacto|credicorp|infraestructura|colaborador|agencia"):
@@ -257,8 +264,17 @@ def _leer_whatsapp(lineas, d):
                 d["fecha"] = valor.strip()
             continue
         if kl in ("corte", "horario", "hora"):
-            if not d["horario"]:
+            if not d["horario"] or d["horario"].startswith("Vigencia"):
                 d["horario"] = linea.strip() if kl == "corte" else valor.strip()
+            continue
+        if kl.startswith("vigencia"):
+            # "Del 05/11/2026 a las 13:00 h al 06/11/2026 a las 13:00 h." -> "Vigencia: 05/11 13:00 h – 06/11 13:00 h"
+            v = valor.strip().rstrip(".")
+            m = re.findall(r"(\d{1,2}/\d{1,2})(?:/\d{2,4})?\D{0,12}?(\d{1,2}:\d{2})", v)
+            corto = " – ".join(f"{f} {h} h" for f, h in m[:2]) if len(m) >= 2 else v
+            d["vigencia"] = v
+            if not d["horario"]:
+                d["horario"] = "Vigencia: " + corto
             continue
         if "reporte fenomenol" in low:
             continue
@@ -719,8 +735,13 @@ def construir(d, salida_pptx, borrador=False):
     if d["p2"]:
         bloques.append((d["p2_titulo"] or "NOCHE Y MADRUGADA", P_PINK, d["p2"]))
     secs_base, bloques_base = secs, bloques
-    sec_medidas = ("MEDIDAS", _megafono, G_PURPLE, d["medidas"]) if d["medidas"] else None
-    blq_medidas = ("MEDIDAS", P_PURPLE, d["medidas"]) if d["medidas"] else None
+    # Secciones opcionales: aparecen solo si el mensaje las trae
+    extras = []
+    if d["medidas"]:
+        extras.append((("MEDIDAS", _megafono, G_PURPLE, d["medidas"]), ("MEDIDAS", P_PURPLE, d["medidas"])))
+    if d.get("recomendaciones"):
+        extras.append((("RECOMENDACIONES PREVENTIVAS", _alerta, G_AMBER, d["recomendaciones"]),
+                       ("RECOMENDACIONES PREVENTIVAS", WARN_FG, d["recomendaciones"])))
     hay_agencias = bool(d["agencias"])
 
     TOP, BOTTOM = 1.42, 6.86
@@ -770,10 +791,13 @@ def construir(d, salida_pptx, borrador=False):
     # Si con el espaciado normal no entra, se prueba uno más compacto.
     ESPACIADOS = ((0.34, 0.12), (0.30, 0.07))
     ESP = ESPACIADOS[0]
-    # "Medidas" (cuando viene) va a la columna donde deje la letra más grande
-    opciones = [(secs_base, bloques_base)]
-    if sec_medidas:
-        opciones = [(secs_base + [sec_medidas], bloques_base), (secs_base, bloques_base + [blq_medidas])]
+    # Cada sección opcional va a la columna (izquierda o derecha) donde deje la letra más grande
+    import itertools
+    opciones = []
+    for lados in itertools.product(("izq", "der"), repeat=len(extras)):
+        secs_o = secs_base + [e[0] for e, lado in zip(extras, lados) if lado == "izq"]
+        bloques_o = bloques_base + [e[1] for e, lado in zip(extras, lados) if lado == "der"]
+        opciones.append((secs_o, bloques_o))
     mejor = None
     for ESP in ESPACIADOS:
         for secs, bloques in opciones:
@@ -874,7 +898,8 @@ def construir(d, salida_pptx, borrador=False):
         ht = alto_tit(t, rl_w)
         texto(slide, rl_x, y, rl_w, ht, t.upper(), 13, col, True)
         h = alto_lista(items, fs2, rl_w)
-        vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2, t.capitalize() if t == "MEDIDAS" else f"Pronostico {i + 1}")
+        vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2,
+                t.capitalize() if i >= len(bloques_base) else f"Pronostico {i + 1}")
         y += ht + h + 0.22
         if i < len(bloques) - 1:
             linea_h(slide, rl_x, RX + RW - 0.28, y - 0.11)
@@ -1329,7 +1354,8 @@ def main():
     d = leer_datos(a.datos)
     print(f"Leído: {len(d['lluvias'])} lluvias · {len(d['vias'])} vías · {len(d['rios'])} ríos/quebradas · "
           f"{len(d['p1']) + len(d['p2'])} pronósticos"
-          + (f" · {len(d['medidas'])} medidas" if d["medidas"] else ""))
+          + (f" · {len(d['medidas'])} medidas" if d["medidas"] else "")
+          + (f" · {len(d['recomendaciones'])} recomendaciones" if d["recomendaciones"] else ""))
     if d["agencias"]:
         af = [n for n, e in d["agencias"] if es_afectado(e)]
         print(f"Agencias/sedes Pacífico: {len(d['agencias'])} revisadas, "

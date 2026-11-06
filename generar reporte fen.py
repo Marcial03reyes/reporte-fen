@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-06d (solo fecha; colaborador genérico)"
+VERSION = "2026-11-06e (vista previa del correo)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1384,14 +1384,32 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False)
     os.replace(tmp, destino)          # aparece completo de una vez (OneDrive no sube un archivo a medias)
+
+    # Vista previa del correo (fuera de _para_envio para no disparar el flujo)
+    carpeta_prev = os.path.join(carpeta_salida, "_vista_previa_correo")
+    os.makedirs(carpeta_prev, exist_ok=True)
+    previa = os.path.join(carpeta_prev, os.path.splitext(os.path.basename(pptx_path))[0] + "_correo.html")
+    with open(previa, "w", encoding="utf-8") as f:
+        f.write('<!doctype html><html><head><meta charset="utf-8"><title>' + html.escape(asunto) + '</title></head>'
+                '<body style="margin:24px;background:#fff">'
+                '<div style="font:600 18px Segoe UI,Arial;margin-bottom:4px">Asunto: ' + html.escape(asunto) + '</div>'
+                '<div style="font:12px Segoe UI,Arial;color:#555;margin-bottom:16px">Adjunto: '
+                + html.escape(os.path.basename(pptx_path)) + ' · Desde: buzón de Continuidad (según el flujo)</div>'
+                + cuerpo + '</body></html>')
     print("\nListo para Power Automate:")
     print(f"  {destino}")
     if datos["ruta_pptx_onedrive"]:
         print(f"  Ruta del PPT en OneDrive (para el flujo): {datos['ruta_pptx_onedrive']}")
     else:
         print("  Aviso: la carpeta de salida no parece estar dentro de OneDrive; el flujo no podrá tomar el PPT.")
+    print(f"  Vista previa del correo: {previa}")
     print("  En unos minutos te llegará la aprobación (Teams/Outlook). Al aprobarla, se envía el correo "
           "desde el buzón de Continuidad.")
+    if platform.system() == "Windows":
+        try:
+            os.startfile(previa)  # noqa: S606  abre la vista previa en el navegador
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ================================================================ 7. Principal

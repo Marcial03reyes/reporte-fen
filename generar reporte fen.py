@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05j (Power Automate)"
+VERSION = "2026-11-05k (correo formato Comité FEN)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1207,6 +1207,8 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
     corte = re.sub(r"^corte\s*:\s*", "", d["horario"], flags=re.I).strip()
     img_b64 = imagen_para_correo_b64(png_path) if png_path and os.path.exists(png_path) else ""
     asunto, cuerpo = armar_correo(d, {}, img_src=f"data:image/jpeg;base64,{img_b64}")
+    # HTML en una sola línea y sin espacios en los extremos (el editor de Power Automate lo trata mejor)
+    cuerpo = re.sub(r">\s+<", "><", re.sub(r"\s*\n\s*", " ", cuerpo)).strip()
     s_val = d["sedes"] or "Sin afectación reportada."
     c_val = d["colab"] or "Sin afectación reportada."
     s_niv, c_niv = nivel(s_val), nivel(c_val)

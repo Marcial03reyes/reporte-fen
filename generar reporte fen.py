@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-06b (sin notas en el PPT)"
+VERSION = "2026-11-06c (colaboradores afectados)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -75,6 +75,10 @@ SECCIONES = {
     "PIE DE PAGINA": "pie",
     "PIE DE PÁGINA": "pie",
     "MEDIDAS": "medidas",
+    "COLABORADORES AFECTADOS": "colab_casos",
+    "COLABORADORES": "colab_casos",
+    "AFECTACION DE COLABORADORES": "colab_casos",
+    "AFECTACIÓN DE COLABORADORES": "colab_casos",
     "RECOMENDACIONES": "recomendaciones",
     "RECOMENDACIONES PREVENTIVAS": "recomendaciones",
     "AGENCIAS": "agencias",
@@ -87,6 +91,7 @@ def _vacio():
     return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [],
             "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
             "conf": [], "sedes": "", "colab": "", "pie": [], "medidas": [], "recomendaciones": [], "vigencia": "",
+            "colab_casos": [], "colab_nivel": "",
             "agencias": [], "ag_fecha": "", "ag_corte": "", "ag_resumen": ""}
 
 
@@ -107,6 +112,54 @@ def nivel(valor):
 def es_afectado(valor):
     """True si el texto describe una afectación (no empieza con 'Sin afectación', 'Sin impacto', etc.)."""
     return bool(valor.strip()) and not SIN_AFECTACION.match(valor.strip())
+
+
+def _linea_colaborador(d, linea):
+    """Una línea de la sección de colaboradores afectados. Formato recomendado:  Lugar: detalle
+    (p. ej. 'Lima: 5 colaboradores con filtraciones en sus viviendas, en evaluación')."""
+    linea = linea.strip().rstrip(",")
+    if not linea or re.match(r"^(saludos|atentamente|atte|gracias|buen(os|as) (d[ií]as|tardes|noches)\W*$)", linea, re.I):
+        return
+    linea = re.sub(r"^buen(os|as) (d[ií]as|tardes|noches)\s*[,.:]\s*", "", linea, flags=re.I)
+    if linea and linea[0].islower():
+        linea = linea[0].upper() + linea[1:]
+    if re.fullmatch(r"(s/?n|sin afectaci[oó]n.*|ninguno|ninguna|-+)\.?", linea, re.I):
+        return
+    d["colab_casos"].append(linea)
+
+
+NUMEROS = {"un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6,
+           "siete": 7, "ocho": 8, "nueve": 9, "diez": 10}
+
+
+def resolver_colaboradores(d):
+    """Si hay casos en [COLABORADORES AFECTADOS], arma el texto de 'Colaboradores' y su nivel."""
+    if not d["colab_casos"]:
+        return d
+    resumen, total, todos_contados = [], 0, True
+    niveles = []
+    for caso in d["colab_casos"]:
+        lugar, sep, detalle = caso.partition(":")
+        if not sep or len(lugar) > 40:
+            lugar, detalle = "", caso
+        m = re.search(r"\b(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b\s+colaborador",
+                      detalle, re.I)
+        n = (int(m.group(1)) if m.group(1).isdigit() else NUMEROS[m.group(1).lower()]) if m else None
+        if n is None:
+            todos_contados = False
+        else:
+            total += n
+        if lugar:
+            resumen.append(f"{lugar.strip()} ({n})" if n else lugar.strip())
+        niv = nivel(detalle)
+        niveles.append("afectado" if niv == "ok" else niv)
+    d["colab_nivel"] = "afectado" if "afectado" in niveles else "leve"
+    lugares = ", ".join(resumen[:-1]) + " y " + resumen[-1] if len(resumen) > 1 else (resumen[0] if resumen else "")
+    if todos_contados and total:
+        d["colab"] = (f"{total} en total" if total > 1 else "1 colaborador(a)") + (f": {lugares}." if lugares else ".")
+    else:
+        d["colab"] = (f"Casos en {lugares}." if lugares else f"{len(d['colab_casos'])} caso(s) reportado(s).")
+    return d
 
 
 def _linea_agencia(d, linea):
@@ -170,6 +223,8 @@ def _leer_estructurado(lineas, d):
             d["pie"].append(linea)
         elif actual == "agencias":
             _linea_agencia(d, _limpiar(raw))
+        elif actual == "colab_casos":
+            _linea_colaborador(d, _limpiar(raw))
         else:
             d[actual].append(linea)
     return d
@@ -210,6 +265,8 @@ def _tipo_seccion(titulo):
     def hay(patron):                # compara palabras completas ("lluvias" no contiene la palabra "vías")
         return re.search(r"\b(" + patron + r")", t) is not None
 
+    if hay(r"colaborador") and hay(r"afectaci|afectad") and not hay(r"credicorp|infraestructura"):
+        return "colab_casos"        # casos de colaboradores afectados (alimenta "Colaboradores")
     if hay(r"agencias?") and hay(r"pac[ií]fico"):
         return "agencias"           # mensaje de agencias de Pacífico (alimenta "Sedes")
     if hay(r"pron[oó]stico"):
@@ -248,9 +305,13 @@ def _leer_whatsapp(lineas, d):
         # Dos puntos "de etiqueta" (Tumbes: ...), sin contar los de una hora como 13:00
         sep_etq = re.search(r"(?<!\d):(?!\d)", linea.rstrip(":")) is not None
 
-        if actual == "agencias" and not (not _es_vineta(raw) and _tipo_seccion(linea) not in (None, "agencias")
-                                         and (linea.endswith(":") or not sep_etq)):
+        titulo_posible = (not _es_vineta(raw)) and len(linea) <= 90 and (
+            linea.endswith(":") or not sep_etq or re.match(r"pron[oó]stico\b", low) is not None)
+        if actual == "agencias" and not (titulo_posible and _tipo_seccion(linea) not in (None, "agencias", "ignorar")):
             _linea_agencia(d, linea)
+            continue
+        if actual == "colab_casos" and not (titulo_posible and _tipo_seccion(linea) not in (None, "colab_casos")):
+            _linea_colaborador(d, linea)
             continue
 
         # Datos de cabecera
@@ -284,8 +345,7 @@ def _leer_whatsapp(lineas, d):
             continue
 
         # ¿Es un título de sección? (no lleva viñeta y no tiene texto después de los dos puntos)
-        es_titulo = (not _es_vineta(raw)) and len(linea) <= 90 and (
-            linea.endswith(":") or not sep_etq or re.match(r"pron[oó]stico\b", low) is not None)
+        es_titulo = titulo_posible
         if es_titulo:
             tipo = _tipo_seccion(linea)
             if tipo == "pronostico":
@@ -301,6 +361,8 @@ def _leer_whatsapp(lineas, d):
             continue
 
         if actual and actual != "ignorar":
+            if re.fullmatch(r"(s/?n|n/?a|sin novedad(es)?|ninguno|ninguna|sin reportes?|-+)\.?", low.strip()):
+                continue                                  # "s/n" = sin novedades: la sección queda en "Sin reportes."
             d[actual].append(_etiqueta_bonita(linea))
     return d
 
@@ -313,11 +375,26 @@ def leer_datos(ruta):
     clima = {"LLUVIAS REPORTADAS", "VIAS RESTRINGIDAS", "VÍAS RESTRINGIDAS", "RIOS Y OTRAS AFECTACIONES",
              "RÍOS Y OTRAS AFECTACIONES", "PRONOSTICO 1", "PRONÓSTICO 1"}
     if any(s in clima for s in secciones if s):
-        return resolver_sedes(_leer_estructurado(lineas, d))
+        return resolver_colaboradores(resolver_sedes(_leer_estructurado(lineas, d)))
     # Mensaje de WhatsApp arriba + datos de Pacífico entre corchetes abajo
     corte = next((i for i, s in enumerate(secciones) if s), len(lineas))
     _leer_whatsapp(lineas[:corte], d)
-    return resolver_sedes(_leer_estructurado(lineas[corte:], d))
+    d = resolver_colaboradores(resolver_sedes(_leer_estructurado(lineas[corte:], d)))
+    _avisar_colaboradores_sueltos(lineas, d)
+    return d
+
+
+def _avisar_colaboradores_sueltos(lineas, d):
+    """Si el .txt menciona casos de colaboradores (p. ej. '5 colaboradores', 'una colaboradora') fuera de
+    [COLABORADORES AFECTADOS], avisa: esas líneas no se usan y el reporte diría 'Sin afectación'."""
+    if d["colab_casos"]:
+        return
+    patron = re.compile(r"\b(\d+|una?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+colaborador", re.I)
+    sueltas = [l.strip() for l in lineas if patron.search(l) and not l.strip().startswith("#")]
+    if sueltas:
+        print("  AVISO: hay casos de colaboradores fuera de la sección [COLABORADORES AFECTADOS]; no se incluyen.")
+        print(f"         Ej.: «{sueltas[0][:80]}»")
+        print("         Pásalos a esa sección, uno por línea (Lugar: detalle).")
 
 
 def resolver_sedes(d):
@@ -743,12 +820,15 @@ def construir(d, salida_pptx, borrador=False):
         extras.append((("RECOMENDACIONES PREVENTIVAS", _alerta, G_AMBER, d["recomendaciones"]),
                        ("RECOMENDACIONES PREVENTIVAS", WARN_FG, d["recomendaciones"])))
     hay_agencias = bool(d["agencias"])
+    hay_casos = bool(d.get("colab_casos"))
 
     TOP, BOTTOM = 1.42, 6.86
     HEAD = 0.5
     y0 = TOP + HEAD + 0.14
     EXTRA_AG = 0.27 if hay_agencias else 0.0      # fila de agencias dentro del panel de impacto
-    Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG
+    EXTRA_CO = 0.30 if hay_casos else 0.0         # fila de colaboradores afectados
+    EXTRA_AG_TOTAL = EXTRA_AG + EXTRA_CO
+    Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG_TOTAL
     ry0, ry1 = TOP + HEAD + 0.16, 6.02
     MIN_FS = 7.5
 
@@ -851,9 +931,9 @@ def construir(d, salida_pptx, borrador=False):
             af = es_afectado(v)
             chip(slide, cx + 0.6, py + 0.76, col_w - 0.75, 0.34, "", v, af, 10 if len(v) < 45 else 8.5)
     else:
-        px, py, pw, ph = LX + 0.22, 6.14 - EXTRA_AG, LW - 0.44, 0.6 + EXTRA_AG
+        px, py, pw, ph = LX + 0.22, 6.14 - EXTRA_AG_TOTAL, LW - 0.44, 0.6 + EXTRA_AG_TOTAL
         panel = caja(slide, px, py, pw, ph, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Panel impacto")
-        panel.adjustments[0] = 0.25 if not hay_agencias else 0.18
+        panel.adjustments[0] = 0.25 if not (hay_agencias or hay_casos) else 0.14
         texto(slide, px + 0.2, py, 2.1, 0.6, [[("IMPACTO EN", True, P_BLUE_DK)], [("PACÍFICO SEGUROS", True, P_BLUE_DK)]],
               11, anchor=MSO_ANCHOR.MIDDLE)
         resto = pw - 2.35
@@ -862,6 +942,8 @@ def construir(d, salida_pptx, borrador=False):
             cx = px + 2.25 + j * col_w
             v = valor or "Sin afectación reportada."
             af = nivel(v)
+            if etq == "Colaboradores" and d.get("colab_nivel"):
+                af = d["colab_nivel"]                    # nivel calculado de los casos reportados
             if af != "ok":
                 # Hay afectación: ícono de alerta (ámbar si es leve, rojo si es seria) y etiqueta explícita
                 ic, col = _alerta, (G_AMBER if af == "leve" else G_RED)
@@ -890,6 +972,23 @@ def construir(d, salida_pptx, borrador=False):
                 fs_ag -= 0.5
             texto(slide, px + 0.2, py + 0.58, pw - 0.4, 0.22, [partes], fs_ag, anchor=MSO_ANCHOR.MIDDLE,
                   nombre="Agencias y sedes")
+        if hay_casos:
+            # Fila con el detalle de cada caso de colaboradores afectados
+            tinta_rot = COLORES_NIVEL[d.get("colab_nivel") or "afectado"][1]
+            partes = [("Colaboradores afectados:  ", True, tinta_rot)]
+            for caso in d["colab_casos"]:
+                niv = nivel(caso)
+                tinta = COLORES_NIVEL["afectado" if niv == "ok" else niv][1]
+                partes += [("●\u00a0", False, tinta), (caso + "    ", False, P_INK)]
+            ancho_co = (pw - 0.4) * 72 * 0.97
+            largo = lambda f: sum(ancho_pt(t, f, b) for t, b, _ in partes)
+            fs_co = 9.5
+            while fs_co > 7 and largo(fs_co) > ancho_co:
+                fs_co -= 0.5
+            if largo(fs_co) > ancho_co:                  # no entra en una línea: dos líneas a 7 pt
+                fs_co = 7
+            texto(slide, px + 0.2, py + 0.58 + EXTRA_AG, pw - 0.4, 0.28, [partes], fs_co,
+                  anchor=MSO_ANCHOR.MIDDLE, nombre="Colaboradores afectados")
 
     # ---- Columna derecha: pronóstico
     rl_x, rl_w = RX + 0.28, RW - 0.56
@@ -1051,7 +1150,12 @@ def armar_correo(d, conf, img_src="cid:reporte_fen"):
 
     def estado(etq, valor):
         v = valor or "Sin afectación reportada."
-        return (f'<p style="margin:6px 0">{etq}: {punto[nivel(v)]} {html.escape(v)}</p>')
+        niv = d["colab_nivel"] if (etq == "Colaboradores" and d.get("colab_nivel")) else nivel(v)
+        linea = f'<p style="margin:6px 0">{etq}: {punto[niv]} {html.escape(v)}</p>'
+        if etq == "Colaboradores" and d.get("colab_casos"):
+            linea += ('<ul style="margin:2px 0 6px 0">'
+                      + "".join(f"<li>{html.escape(c)}</li>" for c in d["colab_casos"]) + "</ul>")
+        return linea
 
     cuerpo = f"""<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt;color:#000000">
 <p>{html.escape(saludo)}</p>
@@ -1246,10 +1350,12 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
     cuerpo = re.sub(r">\s+<", "><", re.sub(r"\s*\n\s*", " ", cuerpo)).strip()
     s_val = d["sedes"] or "Sin afectación reportada."
     c_val = d["colab"] or "Sin afectación reportada."
-    s_niv, c_niv = nivel(s_val), nivel(c_val)
+    s_niv, c_niv = nivel(s_val), (d.get("colab_nivel") or nivel(c_val))
     punto = {"ok": "🟢", "leve": "🟠", "afectado": "🔴"}
-    resumen = (f"**{asunto}**\n\n- Infraestructura: {punto[s_niv]} {s_val}\n- Colaboradores: {punto[c_niv]} {c_val}\n\n"
-               f"Confirmado por: {' y '.join(c for c in d['conf'] if c)}")
+    resumen = f"**{asunto}**\n\n- Infraestructura: {punto[s_niv]} {s_val}\n- Colaboradores: {punto[c_niv]} {c_val}"
+    if d.get("colab_casos"):
+        resumen += "\n\nDetalle de colaboradores:" + "".join(f"\n- {c}" for c in d["colab_casos"])
+    resumen += f"\n\nConfirmado por: {' y '.join(c for c in d['conf'] if c)}"
 
     def b64(ruta):
         if not ruta or not os.path.exists(ruta):
@@ -1350,6 +1456,8 @@ def main():
           f"{len(d['p1']) + len(d['p2'])} pronósticos"
           + (f" · {len(d['medidas'])} medidas" if d["medidas"] else "")
           + (f" · {len(d['recomendaciones'])} recomendaciones" if d["recomendaciones"] else ""))
+    if d["colab_casos"]:
+        print(f"Colaboradores afectados: {d['colab']}  ({len(d['colab_casos'])} caso(s))")
     if d["agencias"]:
         af = [n for n, e in d["agencias"] if es_afectado(e)]
         print(f"Agencias/sedes Pacífico: {len(d['agencias'])} revisadas, "

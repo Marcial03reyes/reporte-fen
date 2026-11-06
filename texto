@@ -1,59 +1,65 @@
+# Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
 # ============================================================
-#  1) Borra el mensaje de ejemplo y pega aquí el de WhatsApp, tal cual llegó.
-#  2) Abajo completa los datos de Pacífico (no borres los [corchetes]).
-#  3) Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
+#  1) Borra el ejemplo y pega aquí el mensaje del Reporte FEN, tal cual llegó por WhatsApp.
+#     Si trae "Medidas", se incluye sola; si no la trae, no pasa nada.
 # ============================================================
 
-​🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*
-📅 *Fecha:* 03/11/2026
-🕕 *Corte:* 18:00 horas
+🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL
 
-⛈️ *Lluvias reportadas (08:00 – 18:00 h):*
+📅 Fecha: 05/11/2026
+🕘 Vigencia del pronóstico: Del 05/11/2026 a las 13:00 h al 06/11/2026 a las 13:00 h.
 
-▪️ *Tumbes:* Lluvias en Matapalo al cierre de este reporte. Acumulados de las últimas 24 h según Senamhi: *82.9 mm* en Rica Playa y *16.0 mm* en Matapalo.
+⛈️ Lluvias reportadas:
 
-▪️ *Lima:* Llovizna persistente durante la mañana, con aniegos en San Juan de Miraflores (puente Atocongo) y acumulación de agua en el puente Habich (SMP). En Lima norte, llovizna fuerte y persistente en Huacho y Barranca, con calles aniegadas. En la sierra de Lima, lluvias en Catahuasi (Yauyos).
+▪️ Piura: Se reportan lluvias en Cruceta–Tambogrande.
 
-▪️ *Cuenca Chancay-Lambayeque:* Acumulados de hasta *55 mm* en la estación Cañad, 32.2 mm en Tongod y 30 mm en Santa Cruz (24 h).
+📡 PRONÓSTICO – HOY
 
-▪️ *Tacna:* Lloviznas ligeras en la costa.
+▪️ COSTA: Se prevén lluvias de moderada a extrema intensidad en Tumbes y Piura. Asimismo, lloviznas de ligera a fuerte intensidad en la costa sur.
 
-🏞️ *Ríos y quebradas:*
+▪️ LIMA METROPOLITANA: Se prevén lloviznas de ligera a moderada intensidad, principalmente en Villa El Salvador y Villa María del Triunfo.
 
-▪️ El Senamhi mantiene aviso de *nivel rojo* por posible activación de quebradas en Tumbes, Piura, Lambayeque, Cajamarca y Áncash, con más de 1.29 millones de personas expuestas.
+▪️ SIERRA: Se prevén precipitaciones de moderada a fuerte intensidad en la sierra norte. En la sierra centro y sur, precipitaciones de moderada intensidad, incluyendo lluvia, nieve y granizo.
 
-🚧 *Vías restringidas:*
+▪️ SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad en la selva norte.
 
-▪️ *Ucayali:* Carretera Federico Basadre (PE-5N), sector Santa Rosa (km 441+120 al 441+350), interrumpida en ambos sentidos. Se perdieron 140 m de plataforma y Provías trabaja con 9 máquinas en dos frentes. Ruta alterna por Villa Rica.
+⚠️ RECOMENDACIONES PREVENTIVAS
 
-▪️ *Cajamarca:* Carretera Longitudinal de la Sierra Norte, km 68 (límite con Piura). Tránsito parcial de vehículos y peatones; puede cambiar según la intensidad de las lluvias.
+▪️ Evitar desplazamientos innecesarios durante lluvias intensas.
 
-▪️ *Piura:* Carretera La Matanza–Huancabamba, sin reporte de reapertura.
+▪️ No cruzar zonas inundadas.
 
-📢 *Medidas:*
+▪️ Mantenerse alejado de cables y postes eléctricos.
 
-▪️ El Gobierno declaró en emergencia por 60 días a *1,380 distritos* de 24 departamentos (D.S. 149-2026-PCM).
+▪️ Evitar riesgos eléctricos en las viviendas.
 
-▪️ El Minsa desplegó la estrategia Minsa Móvil en Tumbes.
+▪️ Mantenerse informado a través de fuentes oficiales.
 
-▪️ Se mantiene el cierre de *25 puertos* por oleajes anómalos hasta el 06/11.
+▪️ Reportar oportunamente cualquier afectación en agencias o colaboradores.
 
-🏢 *IMPACTO EN INFRAESTRUCTURA CREDICORP*
+📡 Se mantiene el monitoreo de las condiciones climatológicas y posibles afectaciones en infraestructura y colaboradores a nivel nacional.
 
-▪️ *Infraestructura:* Sin nuevas afectaciones reportadas.
+# ============================================================
+#  2) (Opcional) Pega aquí el mensaje de agencias de Pacífico provincia.
+#     Si no llegó, deja esta parte vacía.
+# ============================================================
 
-▪️ *Colaboradores:* Sin afectación reportada.
+*🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS PACIFICO*
+📅*Fecha: 05/11/2026*
+🕕*Corte: 09:30 horas*
 
-📡 *PRONÓSTICO – NOCHE DEL 03/11 Y MADRUGADA DEL 04/11*
+* Piura: Sin afectaciones reportadas.
+* Chiclayo: Sin afectaciones reportadas.
+* Trujillo: Sin afectaciones reportadas.
+* Huancayo: Sin afectaciones reportadas.
+* Arequipa (Yanahuara): Sin afectaciones reportadas.
+* Arequipa (Cayma): Sin afectaciones reportadas.
+* Cusco: Sin afectaciones reportadas.
+* Edificios Lima: Pequeñas filtraciones, situacion controlada
 
-▪️ *COSTA:* El Senamhi prevé lluvias en las próximas horas en las provincias de Tumbes y Zarumilla. Lluvias de moderada a *extrema* intensidad en Tumbes y la costa interior de Piura (extrema en Tumbes, Zarumilla, Contralmirante Villar, Piura, Sullana y Morropón). Ligera a moderada en Lambayeque y La Libertad. Lloviznas de moderada a fuerte intensidad en la costa centro y sur, incluida Lima.
+*Resumen: Provincia Sin afectaciones reportadas, Lima filtraciones controladas*
 
-▪️ *SIERRA:* Lluvias de moderada a extrema intensidad en la sierra norte y centro (extrema en Ayabaca y Huancabamba) y moderadas en la sierra sur, con descargas eléctricas y ráfagas de viento. Granizo sobre los 2,800 m s. n. m. en la sierra centro y sur.
-
-▪️ *SELVA:* Lluvias y chubascos de ligera a moderada intensidad, con descargas eléctricas y ráfagas de viento, con mayor probabilidad durante la noche y madrugada.
-
-_Se mantiene el monitoreo._
-
+Saludos,
 # ------------------- DATOS DE PACÍFICO (no borrar) -------------------
 # NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
 [CONFIRMACIONES]

@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-05k (correo formato Comité FEN)"
+VERSION = "2026-11-05l (PPT desde OneDrive)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1196,6 +1196,22 @@ def leer_configuracion(carpeta_script):
     return conf
 
 
+def ruta_en_onedrive(ruta_local):
+    """Convierte una ruta local dentro de OneDrive en la ruta que usa Power Automate
+    ('/Reporte FEN/Reportes generados/archivo.pptx'). Devuelve '' si no está en OneDrive."""
+    ruta = os.path.abspath(ruta_local)
+    for var in ("OneDriveCommercial", "OneDrive"):
+        raiz = os.environ.get(var)
+        if raiz and os.path.normcase(ruta).startswith(os.path.normcase(os.path.abspath(raiz)) + os.sep):
+            return "/" + os.path.relpath(ruta, raiz).replace("\\", "/")
+    # Sin variables de entorno: busca la carpeta "OneDrive - ..." en la ruta
+    partes = re.split(r"[\\/]", ruta)
+    for i, p in enumerate(partes):
+        if p.lower().startswith("onedrive"):
+            return "/" + "/".join(partes[i + 1:])
+    return ""
+
+
 def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
     """Deja en <salida>/_para_envio un .json con todo lo que el flujo de Power Automate necesita
     (asunto, cuerpo, resumen e imagen y PPT en base64). El flujo se dispara con ese archivo."""
@@ -1229,6 +1245,8 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
         "confirmado_por": " y ".join(c for c in d["conf"] if c),
         "archivo_png": os.path.basename(png_path) if png_path else "",
         "archivo_pptx": os.path.basename(pptx_path),
+        "ruta_pptx_onedrive": ruta_en_onedrive(pptx_path),
+        "ruta_png_onedrive": ruta_en_onedrive(png_path) if png_path else "",
         "png_base64": b64(png_path), "pptx_base64": b64(pptx_path),
         "generado": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
     }
@@ -1241,6 +1259,10 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
     os.replace(tmp, destino)          # aparece completo de una vez (OneDrive no sube un archivo a medias)
     print("\nListo para Power Automate:")
     print(f"  {destino}")
+    if datos["ruta_pptx_onedrive"]:
+        print(f"  Ruta del PPT en OneDrive (para el flujo): {datos['ruta_pptx_onedrive']}")
+    else:
+        print("  Aviso: la carpeta de salida no parece estar dentro de OneDrive; el flujo no podrá tomar el PPT.")
     print("  En unos minutos te llegará la aprobación (Teams/Outlook). Al aprobarla, se envía el correo "
           "desde el buzón de Continuidad.")
 

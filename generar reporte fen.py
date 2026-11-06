@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-06c (colaboradores afectados)"
+VERSION = "2026-11-06d (solo fecha; colaborador genérico)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -125,6 +125,9 @@ def _linea_colaborador(d, linea):
         linea = linea[0].upper() + linea[1:]
     if re.fullmatch(r"(s/?n|sin afectaci[oó]n.*|ninguno|ninguna|-+)\.?", linea, re.I):
         return
+    # Término genérico: "colaboradora(s)" -> "colaborador(es)"
+    linea = re.sub(r"\bcolaboradoras\b", "colaboradores", linea, flags=re.I)
+    linea = re.sub(r"\bcolaboradora\b", "colaborador", linea, flags=re.I)
     d["colab_casos"].append(linea)
 
 
@@ -156,7 +159,7 @@ def resolver_colaboradores(d):
     d["colab_nivel"] = "afectado" if "afectado" in niveles else "leve"
     lugares = ", ".join(resumen[:-1]) + " y " + resumen[-1] if len(resumen) > 1 else (resumen[0] if resumen else "")
     if todos_contados and total:
-        d["colab"] = (f"{total} en total" if total > 1 else "1 colaborador(a)") + (f": {lugares}." if lugares else ".")
+        d["colab"] = (f"{total} en total" if total > 1 else "1 colaborador") + (f": {lugares}." if lugares else ".")
     else:
         d["colab"] = (f"Casos en {lugares}." if lugares else f"{len(d['colab_casos'])} caso(s) reportado(s).")
     return d
@@ -794,9 +797,8 @@ def construir(d, salida_pptx, borrador=False):
         imagen_ajustada(slide, recurso("logo_continuidad.png"), 7.55, 0.30, alto=0.62)
     fb = caja(slide, 10.05, 0.24, 2.78, 0.9, WHITE, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Caja fecha")
     fb.adjustments[0] = 0.18
-    texto(slide, 10.3, 0.32, 2.4, 0.2, "FECHA", 9, P_GREY, True)
-    texto(slide, 10.3, 0.52, 2.4, 0.32, d["fecha"], 17, P_BLUE_DK, True)
-    texto(slide, 10.3, 0.86, 2.4, 0.2, d["horario"], 9, P_GREY, True)
+    texto(slide, 10.3, 0.40, 2.4, 0.2, "FECHA", 9, P_GREY, True)
+    texto(slide, 10.3, 0.62, 2.4, 0.36, d["fecha"], 18, P_BLUE_DK, True)
     if borrador:
         b = caja(slide, 4.6, 0.36, 2.7, 0.42, BAD_FG, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Marca borrador")
         b.adjustments[0] = 0.5

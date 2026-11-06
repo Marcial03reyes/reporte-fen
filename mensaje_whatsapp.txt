@@ -78,7 +78,7 @@ Persona 2:
 # Colaboradores afectados: un caso por línea, con el formato  Lugar: detalle  (corto).
 #   Si no hay casos, deja la sección vacía.  Ejemplos:
 #   Lima: 5 colaboradores con filtraciones en sus viviendas, en evaluación.
-#   Chiclayo: 1 colaboradora con dengue, en vigilancia médica.
+#   Chiclayo: 1 colaborador con dengue, en vigilancia médica.
 [COLABORADORES AFECTADOS]
 
 # Sedes: si pegaste el mensaje de agencias, se completa solo. Escribe aquí solo si hay una afectación.

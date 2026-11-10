@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-10 (cabecera en una línea)"
+VERSION = "2026-11-10b (revisa la imagen antes de enviar)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1329,6 +1329,25 @@ def leer_configuracion(carpeta_script):
     return conf
 
 
+def revisar_imagen(png_path):
+    """Devuelve '' si el PNG está completo; si no, una descripción corta del problema."""
+    try:
+        with Image.open(png_path) as im:
+            im.verify()                      # detecta archivos cortados o dañados
+        with Image.open(png_path) as im:
+            im.load()
+            ancho, alto = im.size
+            if ancho < 800 or alto < 400:
+                return f"tamaño {ancho}x{alto}"
+            # una imagen "vacía" (casi de un solo color) también es sospechosa
+            colores = im.convert("RGB").resize((64, 36)).getcolors(64 * 36)
+            if colores is not None and len(colores) < 20:
+                return "imagen en blanco"
+    except Exception as e:  # noqa: BLE001
+        return f"no se pudo leer: {e.__class__.__name__}"
+    return ""
+
+
 def ruta_en_onedrive(ruta_local):
     """Convierte una ruta local dentro de OneDrive en la ruta que usa Power Automate
     ('/Reporte FEN/Reportes generados/archivo.pptx'). Devuelve '' si no está en OneDrive."""
@@ -1531,6 +1550,7 @@ def main():
         sys.exit(f"No se pudo guardar {os.path.basename(pptx_path)}: está abierto en PowerPoint. "
                  "Ciérralo y vuelve a ejecutar.")
     print(f"PPT creado: {pptx_path}")
+    print("  (No abras el PPT ni el PNG hasta que el script termine.)")
     motor = exportar_png(pptx_path, png_path)
     if motor:
         print(f"PNG creado ({motor}): {png_path}")
@@ -1554,6 +1574,12 @@ def main():
     if config["modo"] == "automate":
         if not motor:
             print("\nNo se preparó el envío: falta el PNG.")
+            return
+        problema = revisar_imagen(png_path)
+        if problema:
+            print(f"\nNo se preparó el envío: la imagen del reporte salió incompleta ({problema}).")
+            print("Suele pasar si se abre el PPT o el PNG mientras el script corre. Cierra PowerPoint y "
+                  "vuelve a ejecutar sin abrir nada hasta que termine.")
             return
         preparar_envio_automate(d, pptx_path, png_path, a.salida)
     elif config["modo"] == "outlook":

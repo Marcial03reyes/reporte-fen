@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-06e (vista previa del correo)"
+VERSION = "2026-11-10 (cabecera en una línea)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -341,6 +341,13 @@ def _leer_whatsapp(lineas, d):
                 d["horario"] = "Vigencia: " + corto
             continue
         if "reporte fenomenol" in low:
+            # A veces el título trae todo en una línea: "... NACIONAL 📅 Fecha: 10/11/2026 🕗 Corte: 07:00 horas"
+            mf = re.search(r"fecha\s*:\s*(\d{1,2}/\d{1,2}/\d{2,4})", linea, re.I)
+            mc = re.search(r"corte\s*:\s*(\d{1,2}:\d{2}(?:\s*(?:horas|hrs?|h)\b\.?)?)", linea, re.I)
+            if mf and not d["fecha"]:
+                d["fecha"] = mf.group(1)
+            if mc and (not d["horario"] or d["horario"].startswith("Vigencia")):
+                d["horario"] = "Corte: " + mc.group(1).strip()
             continue
         if low.startswith("se mantiene el monitoreo"):
             d["nota"] = linea
@@ -354,6 +361,7 @@ def _leer_whatsapp(lineas, d):
             if tipo == "pronostico":
                 actual = "p1" if not d["p1"] else "p2"
                 titulo = re.sub(r"^pron[oó]stico\s*[–\-:]*\s*", "", linea, flags=re.I).rstrip(":").strip()
+                titulo = re.sub(r"^de\s+", "", titulo, flags=re.I)          # "Pronóstico de hoy" -> "HOY"
                 titulo = re.sub(r"\s+", " ", re.sub(r"(\S)\(", r"\1 (", titulo))   # "HOY(Hasta" -> "HOY (Hasta"
                 d[actual + "_titulo"] = titulo.upper() if titulo else "PRONÓSTICO"
             elif tipo:

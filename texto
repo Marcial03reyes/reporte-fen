@@ -1,3 +1,9 @@
+# Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
+# ============================================================
+#  1) Borra el ejemplo y pega aquí el mensaje del Reporte FEN, tal cual llegó por WhatsApp.
+#     Si trae "Medidas" o "Recomendaciones", se incluyen solas; si no, no pasa nada.
+# ============================================================
+
 🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL 📅 Fecha: 10/11/2026 🕗 Corte: 07:00 horas
 
 ⛈️ Lluvias reportadas: 
@@ -24,3 +30,45 @@ SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad en la se
 COSTA: Se prevén lluvias de moderada a fuerte intensidad en Tumbes y Piura. Asimismo, se esperan lloviznas de ligera intensidad en la costa centro y sur.
 
 📡 Se mantiene el monitoreo.
+
+# ============================================================
+#  2) (Opcional) Pega aquí el mensaje de agencias de Pacífico, tal cual llegó.
+#     Si no llegó, deja esta parte vacía.
+# ============================================================
+
+*🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
+📅*Fecha: 09/11/2026*
+🕕*Corte: 08:11 horas*
+
+* Piura: Sin afectaciones reportadas ambos locales.
+* Chiclayo: Sin afectaciones reportadas.
+* Trujillo: Sin afectaciones reportadas.
+* Huancayo: Sin afectaciones reportadas.
+* Arequipa (Yanahuara): Sin afectaciones reportadas.
+* Arequipa (Cayma): Sin afectaciones reportadas.
+* Cusco: Sin afectaciones 
+* Edificios Lima: Sin afectaciones reportadas
+
+*Resumen: Provincia y Lima Sin afectaciones reportadas*
+
+Saludos,
+
+# ------------------- DATOS DE PACÍFICO (no borrar) -------------------
+# NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
+[CONFIRMACIONES]
+NUMERO: 005
+Persona 1: Paola
+Persona 2: Elizabeth
+
+# Colaboradores afectados: un caso por línea, con el formato  Lugar: detalle  (corto).
+#   Si no hay casos, deja la sección vacía.
+[COLABORADORES AFECTADOS]
+
+# Sedes: si pegaste el mensaje de agencias, se completa solo. Escribe aquí solo si hay una afectación.
+# Colaboradores: si llenaste [COLABORADORES AFECTADOS], se completa solo.
+[IMPACTO PACIFICO]
+Sedes: Sin afectación reportada.
+Colaboradores: Sin afectación reportada.
+
+[PIE DE PAGINA]
+Pacífico Seguros

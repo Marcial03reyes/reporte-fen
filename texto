@@ -4,30 +4,40 @@
 #     Si trae "Medidas" o "Recomendaciones", se incluyen solas; si no, no pasa nada.
 # ============================================================
 
-🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL 📅 Fecha: 10/11/2026 🕗 Corte: 07:00 horas
+🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL
 
-⛈️ Lluvias reportadas: 
-▪️ Puno: Lluvias moderadas en Juliaca y en zonas ribereñas del lago Titicaca.
-▪️ Loreto: Lluvias moderadas en la ciudad de Iquitos. 
-▪️ Lima: lloviznas en diferentes distritos de Lima Metropolitana, en Lima Sur, Villa Maria del Triunfo. En Lima provincia se presentaron lluvias moderadas en Cañete, Canta y Huarochiri amanece con calles anegadas.
+📅 Fecha: 12/11/2026
+🕕 Corte: 08:30 horas
 
-🚧 Vías restringidas: 
-▪️ Ucayali: Carretera Longitudinal de la Selva Norte (PE-SN), sector Padre Abad (km 441+350), restringida por deslizamiento de lodo y piedras.
+⛈️ Lluvias reportadas:
 
-🌊 Ríos, quebradas y otras afectaciones: 
+▪️ Lima: Lloviznas en Lima Metropolitana, principalmente en los distritos del sur: Villa María del Triunfo, Villa El Salvador, Surco, Chorrillos y Lurín.
+▪️ Cajamarca: Lluvias moderadas en Jaén.
+▪️ Tumbes: Lluvias ligeras en los distritos de Matapalo, Cañaveral y San Jacinto.
+▪️ Piura: Lluvias ligeras en Huancabamba, Huarmaca y Sullana.
+▪️ Lambayeque: Lluvias ligeras en Chiclayo y Chongoyape.
+▪️ La Libertad: Lluvias ligeras en Usquil.
+
+🚧 Vías restringidas:
+
+▪️ Ucayali: Carretera Longitudinal de la Selva Norte (PE-SN), sector Padre Abad, con tránsito restringido en un solo sentido entre los km 441+120 y km 441+350.
+
+🌊 Ríos, quebradas y otras afectaciones:
+
 ▪️ Sin reporte de nuevas afectaciones.
 
-🏢 Impacto en infraestructura Credicorp: 
-▪️ Infraestructura: Sin afectación en agencias. 
+🏢 Impacto en infraestructura Credicorp:
+
+▪️ Infraestructura: Sin afectación en agencias.
 ▪️ Colaboradores: Sin afectación en colaboradores.
 
 Pronóstico de hoy:
 
-SIERRA: Se prevén precipitaciones de ligera a moderada intensidad en la sierra norte y de moderada a fuerte intensidad en la sierra centro y sur, acompañadas de descargas eléctricas y ráfagas de viento. Asimismo, se espera la ocurrencia de nieve y granizo en localidades ubicadas por encima de los 2800 m s. n. m. de la sierra centro y sur.
+COSTA: Se prevén lluvias de ligera a moderada intensidad en Tumbes y Piura. Asimismo, se esperan lloviznas de ligera intensidad en la costa centro y sur.
 
-SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad en la selva norte y de forma localizada en la selva centro y selva baja sur, acompañados de descargas eléctricas y ráfagas de viento. Estos eventos presentarían una mayor probabilidad de ocurrencia durante las tardes, noches y madrugadas.
+SIERRA: Se prevén precipitaciones de moderada a fuerte intensidad en la sierra centro y sur, acompañadas de descargas eléctricas y ráfagas de viento. Asimismo, se espera la ocurrencia de nieve y granizo en localidades ubicadas por encima de los 2800 m s. n. m.
 
-COSTA: Se prevén lluvias de moderada a fuerte intensidad en Tumbes y Piura. Asimismo, se esperan lloviznas de ligera intensidad en la costa centro y sur.
+SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad en la selva norte y de forma localizada en la selva alta de Amazonas y San Martín, acompañados de descargas eléctricas y ráfagas de viento.
 
 📡 Se mantiene el monitoreo.
 
@@ -37,8 +47,8 @@ COSTA: Se prevén lluvias de moderada a fuerte intensidad en Tumbes y Piura. Asi
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
-📅*Fecha: 09/11/2026*
-🕕*Corte: 08:11 horas*
+📅*Fecha: 12/11/2026*
+🕕*Corte: 11:00 horas*
 
 * Piura: Sin afectaciones reportadas ambos locales.
 * Chiclayo: Sin afectaciones reportadas.
@@ -56,7 +66,7 @@ Saludos,
 # ------------------- DATOS DE PACÍFICO (no borrar) -------------------
 # NUMERO: si lo dejas vacío, se usa el siguiente al último reporte generado.
 [CONFIRMACIONES]
-NUMERO: 005
+NUMERO: 007
 Persona 1: Paola
 Persona 2: Elizabeth
 

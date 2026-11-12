@@ -11,3 +11,10 @@ CARPETA_SALIDA:
 #   outlook   -> el script pide el OK en la terminal y envía con Outlook (destinatarios.txt)
 #   ninguno   -> solo genera el PPT y el PNG
 MODO_CORREO: automate
+
+# Observatorio Pacífico (mapa del Perú con los avisos oficiales de lluvias y quebradas):
+#   si -> intenta descargar los datos de la página; si no puede, usa el archivo snapshot.json
+#         guardado junto al script (o en CARPETA_SALIDA)
+#   no -> el reporte sale sin el mapa
+RADAR: si
+RADAR_ESTILO: mapa

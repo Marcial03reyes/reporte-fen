@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-10b (revisa la imagen antes de enviar)"
+VERSION = "2026-11-12b (Observatorio Pacífico, mapa)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -408,13 +408,32 @@ def _avisar_colaboradores_sueltos(lineas, d):
         print("         Pásalos a esa sección, uno por línea (Lugar: detalle).")
 
 
+def locales_sede(estado):
+    """El mensaje de agencias a veces agrupa dos locales en una línea ('... ambos locales')."""
+    return 1   # cada línea del mensaje de agencias = una sede (Piura tiene una sola, aunque diga "ambos locales")
+
+
+def lista_sedes(d):
+    """[(ciudad, n_locales, nivel)] en el orden del mensaje de agencias; Arequipa (Yanahuara) y
+    Arequipa (Cayma) se juntan como 'Arequipa' con 2 locales."""
+    orden_ = {"ok": 0, "leve": 1, "afectado": 2}
+    res = {}
+    for n_, e_ in (d["agencias"] or [(s_, "Sin afectación") for s_ in SEDES_POR_DEFECTO]):
+        base = re.sub(r"\s*\(.*\)$", "", n_).strip()
+        base = "Lima" if _sin_tildes(base) == "edificios lima" else base
+        cant, nv = res.get(base, (0, "ok"))
+        nv_e = nivel(e_)
+        res[base] = (cant + locales_sede(e_), nv_e if orden_[nv_e] > orden_[nv] else nv)
+    return [(k, c, n) for k, (c, n) in res.items()]
+
+
 def resolver_sedes(d):
     """Si se pegó el mensaje de agencias de Pacífico, el estado de 'Sedes' sale de ahí.
     Lo que escribas a mano en 'Sedes:' manda solo si describe una afectación."""
     if not d["agencias"] or es_afectado(d["sedes"]):
         return d
     afectadas = [(n, e) for n, e in d["agencias"] if es_afectado(e)]
-    total = len(d["agencias"])
+    total = sum(locales_sede(e) for _, e in d["agencias"])
     if not afectadas:
         d["sedes"] = f"Sin afectación en las {total} sedes revisadas." if total > 1 else \
             "Sin afectación en la sede revisada."
@@ -640,7 +659,7 @@ def texto(slide, x, y, w, h, partes, size, color=NAVY, bold=False, align=PP_ALIG
     return tb
 
 
-def vinetas(slide, x, y, w, h, items, size, nombre):
+def vinetas(slide, x, y, w, h, items, size, nombre, esp=3):
     """Lista con viñetas reales de PowerPoint; la etiqueta antes de ':' va en negrita."""
     tb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
     tb.name = nombre
@@ -651,7 +670,7 @@ def vinetas(slide, x, y, w, h, items, size, nombre):
         etq, txt = separar(linea)
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = PP_ALIGN.JUSTIFY
-        p.space_after = Pt(3)
+        p.space_after = Pt(esp)
         p.line_spacing = Pt(round(size * 1.2, 1))   # interlineado fijo: igual en PowerPoint y LibreOffice
         pPr = p._p.get_or_add_pPr()
         pPr.set("marL", str(Inches(0.13)))
@@ -671,13 +690,13 @@ def vinetas(slide, x, y, w, h, items, size, nombre):
     return tb
 
 
-def alto_lista(items, size, ancho_in):
+def alto_lista(items, size, ancho_in, esp=3):
     disp = ancho_in * 72 - 0.13 * 72
     total = 0.0
     for linea in items:
         etq, txt = separar(linea)
         n = contar_lineas(etq, txt, size, disp)
-        total += n * size * 1.2 + 3
+        total += n * size * 1.2 + esp
     return total / 72.0
 
 
@@ -691,6 +710,482 @@ def linea_h(slide, x1, x2, y):
     c.line.width = Pt(0.75)
     c.shadow.inherit = False
     sin_estilo(c)
+
+
+# ================================================================ 4b. Radar (Observatorio Pacífico)
+RADAR_URL = "https://observatorio-pacifico.pacificoabba0.chatgpt.site/api/radar/snapshot"
+NIVEL_ORDEN = {"Rojo": 3, "Naranja": 2, "Amarillo": 1}
+NIVEL_RGB = {"Rojo": RGBColor(0xC4, 0x12, 0x3F), "Naranja": RGBColor(0xE0, 0x6C, 0x00),
+             "Amarillo": RGBColor(0xC9, 0xA2, 0x00), "": RGBColor(0x1E, 0x7A, 0x45)}
+NIVEL_FONDO = {"Rojo": RGBColor(0xFD, 0xE7, 0xEE), "Naranja": RGBColor(0xFF, 0xEC, 0xDA),
+               "Amarillo": RGBColor(0xFF, 0xF7, 0xD1), "": RGBColor(0xE4, 0xF4, 0xEA)}
+# Ciudad de la sede -> departamento (para cruzar sedes con avisos)
+CIUDAD_DEPTO = {
+    "lima": "Lima", "edificios lima": "Lima", "callao": "Callao", "piura": "Piura", "sullana": "Piura",
+    "chiclayo": "Lambayeque", "trujillo": "La Libertad", "huancayo": "Junín", "arequipa": "Arequipa",
+    "cusco": "Cusco", "ica": "Ica", "tumbes": "Tumbes", "cajamarca": "Cajamarca", "iquitos": "Loreto",
+    "tarapoto": "San Martín", "huanuco": "Huánuco", "tacna": "Tacna", "puno": "Puno", "juliaca": "Puno",
+    "chimbote": "Áncash", "huaraz": "Áncash", "ayacucho": "Ayacucho", "pucallpa": "Ucayali",
+    "moquegua": "Moquegua", "ilo": "Moquegua", "abancay": "Apurímac", "huancavelica": "Huancavelica",
+}
+# Ciudad de la sede -> provincia (los avisos SENAMHI vienen por provincia)
+PROV_SEDE = {"edificios lima": "Lima", "lima": "Lima", "sullana": "Sullana", "chiclayo": "Chiclayo",
+             "trujillo": "Trujillo", "huancayo": "Huancayo", "arequipa": "Arequipa", "cusco": "Cusco",
+             "piura": "Piura", "juliaca": "San Roman", "chimbote": "Santa", "tarapoto": "San Martin",
+             "iquitos": "Maynas", "pucallpa": "Coronel Portillo", "ayacucho": "Huamanga"}
+SEDES_POR_DEFECTO = ["Piura", "Chiclayo", "Trujillo", "Huancayo", "Arequipa (Yanahuara)", "Arequipa (Cayma)",
+                     "Cusco", "Edificios Lima"]
+
+
+def _sin_tildes(t):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", t or "") if unicodedata.category(c) != "Mn").lower()
+
+
+def cargar_radar(carpetas):
+    """Intenta descargar el snapshot del Radar; si no se puede (p. ej. Cloudflare), usa un
+    snapshot.json guardado a mano en alguna de las carpetas. Devuelve (datos, origen) o (None, motivo)."""
+    import json
+    import urllib.request
+    try:
+        req = urllib.request.Request(RADAR_URL, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/131.0 Safari/537.36 Edg/131.0",
+            "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            datos = json.loads(r.read().decode("utf-8"))
+        for c in carpetas[:1]:                              # copia local por si mañana falla la descarga
+            try:
+                with open(os.path.join(c, "snapshot.json"), "w", encoding="utf-8") as f:
+                    json.dump(datos, f, ensure_ascii=False)
+            except OSError:
+                pass
+        return datos, "descargado del Observatorio"
+    except Exception as e:  # noqa: BLE001
+        motivo = f"no se pudo descargar ({e.__class__.__name__})"
+    for c in carpetas:
+        ruta = os.path.join(c, "snapshot.json")
+        if os.path.exists(ruta):
+            try:
+                with open(ruta, encoding="utf-8-sig") as f:
+                    return json.load(f), f"archivo snapshot.json ({datetime.fromtimestamp(os.path.getmtime(ruta)):%d/%m %H:%M})"
+            except Exception:  # noqa: BLE001
+                continue
+    return None, motivo + " y no hay snapshot.json en la carpeta"
+
+
+def fin_local(iso):
+    """Fecha (AAAA-MM-DD, hora de Lima) en que termina un aviso; '' si no se sabe."""
+    from datetime import timedelta, timezone
+    try:
+        t = datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if t.tzinfo:
+        t = t.astimezone(timezone(timedelta(hours=-5)))
+    return t.strftime("%Y-%m-%d")
+
+
+def resumir_radar(datos, fecha_reporte, sedes=None):
+    """Extrae lo que NO viene por WhatsApp: nivel oficial de avisos de lluvia y de activación de
+    quebradas por departamento (para la fecha del reporte), estado ENFEN y sedes en zona con aviso."""
+    m = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", fecha_reporte or "")
+    dia = f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}" if m else datetime.now().strftime("%Y-%m-%d")
+    src, ds = datos.get("sources", {}), datos.get("datasets", {})
+    res = {"dia": dia, "lluvias": {}, "lluvias_avisos": [], "quebradas": {}, "quebradas_aviso": "",
+           "enfen": None, "sedes": []}
+
+    # Lluvias: avisos SENAMHI con evento "lluvias", jornada = fecha del reporte
+    filas = [r for r in src.get("senamhi", {}).get("rows", [])
+             if "lluvias" in (r.get("eventIds") or []) and not r.get("solo_contexto")]
+    jornadas = sorted({r.get("jornada") for r in filas if r.get("jornada") and r.get("jornada") <= dia})
+    jornada = dia if dia in jornadas else None      # solo avisos cuya jornada es el día del reporte
+    if jornada:
+        for r in filas:
+            if r.get("jornada") != jornada:
+                continue
+            nv = r.get("nivel")
+            if nv not in NIVEL_ORDEN:
+                continue
+            res["lluvias_avisos"].append(r.get("numero_aviso"))
+            for dep in r.get("departamentos") or []:
+                if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(res["lluvias"].get(dep), 0):
+                    res["lluvias"][dep] = nv
+    res["lluvias_avisos"] = sorted({a for a in res["lluvias_avisos"] if a})
+
+    # Activación de quebradas (aviso SENAMHI integrado por INDECI)
+    q = src.get("indeci", {})
+    aviso_q = q.get("quebradaNotice") or {}
+    areas = (q.get("quebradaAreas") or {}).get("areas") or []
+    dias_q = sorted({a.get("day") for a in areas if a.get("day") and a.get("day") <= dia})
+    dia_q = dia if dia in dias_q else (dias_q[-1] if dias_q else None)
+    # Si el mapa de quebradas es de un día anterior, solo vale si el aviso sigue vigente el día del reporte
+    if dia_q and dia_q != dia and fin_local(aviso_q.get("fin")) < dia:
+        dia_q = None
+    if dia_q and (datetime.strptime(dia, "%Y-%m-%d") - datetime.strptime(dia_q, "%Y-%m-%d")).days <= 1:
+        for a in areas:
+            if a.get("day") != dia_q:
+                continue
+            nv = (a.get("level") or "").capitalize()
+            dep = a.get("department")
+            if nv in NIVEL_ORDEN and dep and NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(res["quebradas"].get(dep), 0):
+                res["quebradas"][dep] = nv
+        if aviso_q.get("number"):
+            res["quebradas_aviso"] = str(aviso_q["number"])
+
+    # ENFEN
+    est = (ds.get("estado") or [None])[0]
+    if est:
+        prox = est.get("proximo") or ""
+        mp = re.match(r"(\d{4})-(\d{2})-(\d{2})", prox)
+        res["enfen"] = {"estado": est.get("estado", ""), "comunicado": est.get("comunicado", ""),
+                        "proximo": f"{mp.group(3)}/{mp.group(2)}" if mp else prox}
+
+    # Nivel por provincia (para las sedes): lluvias y quebradas
+    prov_ll, prov_qb = {}, {}
+    if jornada:
+        for r in filas:
+            if r.get("jornada") != jornada or r.get("nivel") not in NIVEL_ORDEN:
+                continue
+            for dep in r.get("departamentos") or []:
+                for prov in r.get("provincias") or []:
+                    clave = (_sin_tildes(dep), _sin_tildes(prov))
+                    if NIVEL_ORDEN[r["nivel"]] > NIVEL_ORDEN.get(prov_ll.get(clave), 0):
+                        prov_ll[clave] = r["nivel"]
+    if dia_q:
+        for a in areas:
+            nv = (a.get("level") or "").capitalize()
+            if a.get("day") == dia_q and nv in NIVEL_ORDEN:
+                clave = (_sin_tildes(a.get("department")), _sin_tildes(a.get("province")))
+                if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(prov_qb.get(clave), 0):
+                    prov_qb[clave] = nv
+
+    # Sedes Pacífico en zona con aviso: nivel de la PROVINCIA donde está la sede
+    lista = sedes or SEDES_POR_DEFECTO
+    vistos = {}
+    for s in lista:
+        base = re.sub(r"\s*\(.*\)$", "", s).strip()
+        nombre = "Lima" if _sin_tildes(base) == "edificios lima" else base
+        vistos[nombre] = vistos.get(nombre, 0) + 1
+    for nombre, n in vistos.items():
+        dep = CIUDAD_DEPTO.get(_sin_tildes(nombre), nombre)
+        prov = PROV_SEDE.get(_sin_tildes(nombre), nombre)
+        clave = (_sin_tildes(dep), _sin_tildes(prov))
+        nl, nq = prov_ll.get(clave, ""), prov_qb.get(clave, "")
+        nivel_max = max((nl, nq), key=lambda x: NIVEL_ORDEN.get(x, 0))
+        motivos = [t for t, nv in (("lluvias", nl), ("quebradas", nq)) if nv]
+        res["sedes"].append({"nombre": nombre + (f" ({n})" if n > 1 else ""), "nivel": nivel_max,
+                             "motivo": " + ".join(motivos) if motivos else "sin aviso"})
+    return res
+
+
+def _lista_corta(deps, maximo=4):
+    deps = sorted(deps)
+    return ", ".join(deps) if len(deps) <= maximo else ", ".join(deps[:maximo]) + f" y {len(deps) - maximo} más"
+
+
+def lineas_radar_texto(rz):
+    """Propuesta A en texto plano (sirve para medir alto)."""
+    out = []
+    if rz["enfen"]:
+        out.append(f"ENFEN: {rz['enfen']['estado']} · próximo comunicado {rz['enfen']['proximo']}")
+    for clave, titulo in (("lluvias", "Lluvias"), ("quebradas", "Quebradas")):
+        niv = rz[clave]
+        if niv:
+            partes = [f"● {_lista_corta([d for d, v in niv.items() if v == n])}"
+                      for n in ("Rojo", "Naranja", "Amarillo") if any(v == n for v in niv.values())]
+            out.append(f"{titulo}: " + "   ".join(partes))
+    expuestas = [s for s in rz["sedes"] if s["nivel"]]
+    if expuestas:
+        out.append("Sedes Pacífico en zona con aviso: " + "   ".join(f"● {s['nombre']}" for s in expuestas))
+    return out
+
+
+def alto_radar(rz, estilo, ancho_in, fs=8.5):
+    """Alto (pulgadas) que ocupa el bloque del Radar en la columna derecha."""
+    if not rz:
+        return 0.0
+    if estilo == "mapa":
+        return 2.45
+    if estilo == "sedes":
+        filas = (len(rz["sedes"]) + 3) // 4
+        return 0.30 + filas * 0.40 + 0.22 + 0.20 + 0.10
+    lineas = sum(contar_lineas("", t, fs, (ancho_in - 0.3) * 72) for t in lineas_radar_texto(rz))
+    return 0.30 + lineas * fs * 1.2 / 72 + 0.06 * len(lineas_radar_texto(rz)) + 0.20 + 0.08
+
+
+def dibujar_radar_mapa(slide, rz, x, y, w, h, impacto_sedes):
+    """Propuesta 'mapa': silueta del Perú (color = alerta oficial) + sedes (punto = estado de la sede)."""
+    caja_r = caja(slide, x, y, w, h, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Radar mapa")
+    caja_r.adjustments[0] = 0.06
+    texto(slide, x + 0.15, y + 0.07, w - 0.3, 0.24, "ALERTAS OFICIALES Y SEDES PACÍFICO", 10.5, P_BLUE_DK, True)
+    niveles = dict(rz["lluvias"])
+    for dep, nv in rz["quebradas"].items():
+        if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
+            niveles[dep] = nv
+    pines = [(nombre, nivel_imp) for nombre, nivel_imp in impacto_sedes]
+    res = dibujar_mapa_png(niveles, pines)
+    mx = x + 0.12
+    mh = h - 0.62
+    if res:
+        buf, ratio = res
+        mw = mh * ratio
+        slide.shapes.add_picture(buf, Inches(mx), Inches(y + 0.34), Inches(mw), Inches(mh))
+    else:
+        mw = 0
+    lx = mx + mw + 0.12
+    lw = x + w - 0.12 - lx
+
+    def sw(color_rgb):
+        return ("■ ", True, RGBColor(*color_rgb))
+    p = []
+    p.append([("Alerta oficial (lluvias o quebradas)", True, P_INK)])
+    p.append([sw(FILL_NIVEL["Rojo"]), ("Rojo  ", False, P_GREY), sw(FILL_NIVEL["Naranja"]), ("Naranja", False, P_GREY)])
+    p.append([sw(FILL_NIVEL["Amarillo"]), ("Amarillo  ", False, P_GREY), sw(FILL_NIVEL[""]), ("Sin aviso", False, P_GREY)])
+    p.append([("Sedes Pacífico", True, P_INK)])
+    p.append([("● ", True, RGBColor(*PIN_NIVEL["ok"])), ("Sin afectación  ", False, P_GREY),
+              ("● ", True, RGBColor(*PIN_NIVEL["leve"])), ("Leve", False, P_GREY)])
+    p.append([("● ", True, RGBColor(*PIN_NIVEL["afectado"])), ("Con afectación", False, P_GREY)])
+    expuestas = [s for s in rz["sedes"] if s["nivel"]]
+    if expuestas:
+        runs = [("Sedes en provincia con aviso hoy: ", True, P_INK)]
+        for nv in ("Rojo", "Naranja", "Amarillo"):
+            nombres = [s["nombre"] for s in expuestas if s["nivel"] == nv]
+            if nombres:
+                runs += [("■\u00a0", True, RGBColor(*FILL_NIVEL[nv])), (", ".join(nombres) + "  ", False, P_INK)]
+    else:
+        runs = [("Sedes en provincia con aviso hoy: ", True, P_INK), ("ninguna", False, P_INK)]
+    p.append(runs)
+    if rz["enfen"]:
+        p.append([("ENFEN: ", True, P_INK), (f"{rz['enfen']['estado']} · próx. comunicado {rz['enfen']['proximo']}",
+                                            False, P_INK)])
+    tb = texto(slide, lx, y + 0.38, lw, h - 0.62, p, 8, nombre="Radar leyenda")
+    for i, par in enumerate(tb.text_frame.paragraphs):
+        par.space_after = Pt(4 if i in (2, 5, 6) else 1)
+    texto(slide, x + 0.15, y + h - 0.21, w - 0.3, 0.16,
+          "Fuente: Observatorio Pacífico / Torre de Control. Color del departamento = nivel más alto en "
+          "alguna de sus provincias.", 6.5, P_GREY, False, nombre="Radar fuente")
+
+
+def dibujar_radar(slide, rz, estilo, x, y, w, h, fs=8.5):
+    """Dibuja el bloque del Radar (propuesta A: 'avisos'; propuesta B: 'sedes')."""
+    caja_r = caja(slide, x, y, w, h, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Radar")
+    caja_r.adjustments[0] = 0.08
+    titulo = "AVISOS OFICIALES VIGENTES" if estilo != "sedes" else "SEDES PACÍFICO FRENTE A AVISOS OFICIALES"
+    texto(slide, x + 0.15, y + 0.07, w - 0.3, 0.24, titulo, 10.5, P_BLUE_DK, True, nombre="Radar titulo")
+    cy = y + 0.33
+    if estilo != "sedes":
+        parrafos = []
+        if rz["enfen"]:
+            parrafos.append([("ENFEN: ", True, P_INK),
+                             (f"{rz['enfen']['estado']} · próximo comunicado {rz['enfen']['proximo']}", False, P_INK)])
+        for clave, etq in (("lluvias", "Lluvias"), ("quebradas", "Quebradas")):
+            niv = rz[clave]
+            if not niv:
+                continue
+            aviso = (f" (aviso {', '.join(str(a) for a in rz['lluvias_avisos'])})" if clave == "lluvias"
+                     and rz["lluvias_avisos"] else (f" (aviso {rz['quebradas_aviso']})" if clave == "quebradas"
+                                                    and rz["quebradas_aviso"] else ""))
+            runs = [(f"{etq}{aviso}: ", True, P_INK)]
+            for n in ("Rojo", "Naranja", "Amarillo"):
+                deps = [d for d, v in niv.items() if v == n]
+                if deps:
+                    runs += [("●\u00a0", True, NIVEL_RGB[n]), (_lista_corta(deps).replace(" ", "\u00a0") + "   ", False, P_INK)]
+            parrafos.append(runs)
+        expuestas = [s for s in rz["sedes"] if s["nivel"]]
+        if expuestas:
+            runs = [("Sedes Pacífico en zona con aviso: ", True, P_INK)]
+            for s in sorted(expuestas, key=lambda s: -NIVEL_ORDEN[s["nivel"]]):
+                runs += [("●\u00a0", True, NIVEL_RGB[s["nivel"]]), (s["nombre"].replace(" ", "\u00a0") + "   ", False, P_INK)]
+            parrafos.append(runs)
+        tb = texto(slide, x + 0.15, cy, w - 0.3, h - 0.55, parrafos, fs, nombre="Radar detalle")
+        for p in tb.text_frame.paragraphs:
+            p.space_after = Pt(3)
+    else:
+        sedes = rz["sedes"]
+        por_fila = 4
+        gap = 0.07
+        cw = (w - 0.3 - gap * (por_fila - 1)) / por_fila
+        for i, s in enumerate(sedes):
+            fx, fy = x + 0.15 + (i % por_fila) * (cw + gap), cy + (i // por_fila) * 0.40
+            ch = caja(slide, fx, fy, cw, 0.34, NIVEL_FONDO[s["nivel"]], None, MSO_SHAPE.ROUNDED_RECTANGLE,
+                      "Sede " + s["nombre"])
+            ch.adjustments[0] = 0.3
+            texto(slide, fx + 0.06, fy + 0.01, cw - 0.1, 0.32,
+                  [[("● ", True, NIVEL_RGB[s["nivel"]]), (s["nombre"], True, P_INK)],
+                   [(s["motivo"] if s["nivel"] else "sin aviso", False, NIVEL_RGB[s["nivel"]])]],
+                  7.5, anchor=MSO_ANCHOR.MIDDLE)
+        cy += ((len(sedes) + por_fila - 1) // por_fila) * 0.40 + 0.02
+        leyenda = [("● ", True, NIVEL_RGB["Rojo"]), ("Rojo   ", False, P_GREY),
+                   ("● ", True, NIVEL_RGB["Naranja"]), ("Naranja   ", False, P_GREY),
+                   ("● ", True, NIVEL_RGB["Amarillo"]), ("Amarillo   ", False, P_GREY),
+                   ("● ", True, NIVEL_RGB[""]), ("Sin aviso", False, P_GREY)]
+        if rz["enfen"]:
+            leyenda = [("ENFEN: ", True, P_INK), (f"{rz['enfen']['estado']} · próximo comunicado "
+                                                  f"{rz['enfen']['proximo']}", False, P_INK)]
+            texto(slide, x + 0.15, cy, w - 0.3, 0.2, [leyenda], 8, nombre="Radar ENFEN")
+    texto(slide, x + 0.15, y + h - 0.21, w - 0.3, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
+          7, P_GREY, False, nombre="Radar fuente")
+
+
+
+# ---------------- Mapa (propuesta "mapa")
+COORD_SEDE = {  # lat, lon aproximadas de la ciudad
+    "Piura": (-5.19, -80.63), "Chiclayo": (-6.77, -79.84), "Trujillo": (-8.11, -79.03),
+    "Huancayo": (-12.07, -75.21), "Arequipa": (-16.40, -71.54), "Cusco": (-13.53, -71.97),
+    "Lima": (-12.05, -77.04), "Ica": (-14.07, -75.73), "Tumbes": (-3.57, -80.45), "Cajamarca": (-7.16, -78.51),
+    "Iquitos": (-3.75, -73.25), "Tarapoto": (-6.49, -76.37), "Tacna": (-18.01, -70.25), "Puno": (-15.84, -70.02),
+    "Juliaca": (-15.50, -70.13), "Chimbote": (-9.07, -78.59), "Huaraz": (-9.53, -77.53), "Pucallpa": (-8.38, -74.55),
+    "Ayacucho": (-13.16, -74.22), "Huánuco": (-9.93, -76.24), "Sullana": (-4.90, -80.69),
+}
+# hacia dónde va la etiqueta de cada ciudad (para que no se encimen)
+LADO_ETIQUETA = {"Huancayo": "der", "Cusco": "der", "Arequipa": "der", "Iquitos": "der", "Tarapoto": "der",
+                 "Puno": "der", "Juliaca": "der", "Pucallpa": "der", "Ayacucho": "der", "Huánuco": "der"}
+FILL_NIVEL = {"Rojo": (214, 48, 79), "Naranja": (240, 140, 50), "Amarillo": (246, 210, 80), "": (226, 232, 240)}
+INTENSIDAD = {"Rojo": "Extremo", "Naranja": "Alto", "Amarillo": "Moderado", "": "Sin información"}
+PIN_NIVEL = {"ok": (30, 122, 69), "leve": (214, 128, 0), "afectado": (196, 18, 63)}
+
+
+def ruta_geojson():
+    return recurso("peru_departamentos.geojson")
+
+
+def dibujar_mapa_png(niveles_dep, pines, alto_px=1500):
+    """Silueta del Perú por departamentos coloreada por nivel oficial, con las sedes como puntos.
+    niveles_dep: {"Lima": "Naranja", ...};  pines: [(nombre, nivel_impacto)]  -> BytesIO PNG."""
+    import json
+    import math
+    ruta = ruta_geojson()
+    if not ruta:
+        return None
+    with open(ruta, encoding="utf-8") as f:
+        geo = json.load(f)
+    lon0, lon1, lat0, lat1 = -81.45, -68.6, -18.45, 0.1
+    k = math.cos(math.radians(9.5))
+    escala = alto_px / (lat1 - lat0)
+    margen_izq = int(alto_px * 0.30)                  # espacio en el mar para las etiquetas
+    ancho_px = int((lon1 - lon0) * k * escala) + margen_izq + int(alto_px * 0.12)
+
+    def xy(lon, lat):
+        return (margen_izq + (lon - lon0) * k * escala, (lat1 - lat) * escala)
+
+    img = Image.new("RGBA", (ancho_px, alto_px), (0, 0, 0, 0))
+    dr = ImageDraw.Draw(img)
+    norm = {_sin_tildes(k_): v for k_, v in niveles_dep.items()}
+    for feat in geo["features"]:
+        nombre = feat["properties"].get("NOMBDEP", "")
+        nivel = norm.get(_sin_tildes(nombre), "")
+        g = feat["geometry"]
+        polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
+        for poly in polys:
+            for anillo in poly[:1]:
+                dr.polygon([xy(x, y) for x, y in anillo], fill=FILL_NIVEL[nivel] + (255,))
+    for feat in geo["features"]:                       # bordes blancos encima
+        g = feat["geometry"]
+        polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
+        for poly in polys:
+            for anillo in poly[:1]:
+                dr.line([xy(x, y) for x, y in anillo] + [xy(*anillo[0])], fill=(255, 255, 255, 255),
+                        width=max(2, alto_px // 400))
+    fuente = ImageFont.truetype(recurso(os.path.join("fuentes", "Nunito-Bold.ttf")), int(alto_px * 0.040)) \
+        if recurso(os.path.join("fuentes", "Nunito-Bold.ttf")) else None
+    r = int(alto_px * 0.016)
+    for nombre, nivel_imp in pines:
+        base = re.sub(r"\s*\(.*\)$", "", nombre).strip()
+        if base not in COORD_SEDE:
+            continue
+        x, y = xy(COORD_SEDE[base][1], COORD_SEDE[base][0])
+        if fuente:                                   # solo el nombre, centrado en la ciudad
+            w = dr.textlength(nombre, font=fuente)
+            lado = "izq" if base in ("Lima", "Piura", "Chiclayo", "Trujillo", "Tumbes", "Chimbote", "Ica") \
+                else LADO_ETIQUETA.get(base, "centro")
+            tx = x - w - 4 if lado == "izq" else (x + 4 if lado == "der" else x - w / 2)
+            ty = y - fuente.size * 0.62
+            dr.text((tx, ty), nombre, font=fuente, fill=(30, 42, 68, 255),
+                    stroke_width=max(3, alto_px // 300), stroke_fill=(255, 255, 255, 255))
+    bbox = img.getbbox()
+    if bbox:
+        img = img.crop(bbox)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    buf.seek(0)
+    return buf, img.width / img.height
+
+
+
+def pines_sedes(d):
+    """Estado de cada sede según el mensaje de agencias (el peor por ciudad): [(nombre, 'ok'|'leve'|'afectado')]."""
+    peor, orden_ = {}, {"ok": 0, "leve": 1, "afectado": 2}
+    for n_, e_ in (d["agencias"] or [(s_, "Sin afectación") for s_ in SEDES_POR_DEFECTO]):
+        base = re.sub(r"\s*\(.*\)$", "", n_).strip()
+        base = "Lima" if _sin_tildes(base) == "edificios lima" else base
+        nv_ = nivel(e_)
+        if orden_[nv_] >= orden_.get(peor.get(base, "ok"), 0):
+            peor[base] = nv_
+    return list(peor.items())
+
+
+def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
+    """Panel 'Impacto y exposición': estados de Sedes y Colaboradores a la izquierda,
+    mapa del Perú (alerta oficial por departamento + sedes) a la derecha."""
+    panel = caja(slide, px, py, pw, ph, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Panel impacto")
+    panel.adjustments[0] = 0.06
+    niveles = dict(rz["lluvias"])
+    for dep, nv in rz["quebradas"].items():
+        if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
+            niveles[dep] = nv
+    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600)
+    mh = ph - 0.24
+    mw = 0.0
+    sw = lambda nv: ("■\u00a0", True, RGBColor(*FILL_NIVEL[nv]))
+    if res:
+        buf, ratio = res
+        mw = mh * ratio
+        mx = px + pw - 0.15 - mw
+        slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.12), Inches(mw), Inches(mh))
+        # leyenda de intensidad en el mar, abajo a la izquierda del mapa
+        ley = [[sw(nv), (INTENSIDAD[nv], False, P_INK)] for nv in ("Rojo", "Naranja", "Amarillo", "")]
+        texto(slide, mx - 0.35, py + ph - 0.80, 1.3, 0.72, ley, 7.5, nombre="Leyenda intensidad")
+        mw += 0.35
+    lx = px + 0.2
+    la = pw - 0.35 - mw - 0.25
+    texto(slide, lx, py + 0.1, la, 0.26, "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11, P_BLUE_DK, True)
+    y = py + 0.42
+    for etq, ic, col, valor in impactos:
+        v = valor or "Sin afectación reportada."
+        af = nivel(v)
+        if etq == "Colaboradores" and d.get("colab_nivel"):
+            af = d["colab_nivel"]
+        if af != "ok":
+            ic, col = _alerta, (G_AMBER if af == "leve" else G_RED)
+            etq = "Sedes afectadas" if etq == "Sedes" else "Colaboradores afectados"
+        icono(slide, icono_circulo(ic, col), lx, y + 0.02, 0.38)
+        ancho_chip = la - 0.48
+        fs_chip = 9.5
+        while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.36:
+            fs_chip -= 0.5
+        chip(slide, lx + 0.48, y, ancho_chip, 0.38, etq, v, af, fs_chip)
+        y += 0.44
+        if etq.startswith("Sedes"):                 # cuadrícula: ✓ Ciudad (n)
+            sedes_l = lista_sedes(d)
+            por_fila = 4
+            cw = (ancho_chip - 0.15) / por_fila
+            for k_, (ciudad, cant, nv) in enumerate(sedes_l):
+                marca = ("✓\u00a0", True, OK_FG) if nv == "ok" else ("⚠\u00a0", True, COLORES_NIVEL[nv][1])
+                nom = ciudad + (f" ({cant})" if cant > 1 else "")
+                texto(slide, lx + 0.62 + (k_ % por_fila) * cw, y - 0.04 + (k_ // por_fila) * 0.21, cw, 0.2,
+                      [[marca, (nom, nv != "ok", P_INK if nv == "ok" else COLORES_NIVEL[nv][1])]], 8.5,
+                      nombre="Sede " + ciudad)
+            y += -(-len(sedes_l) // por_fila) * 0.21 + 0.06
+    if d.get("colab_casos"):
+        partes = []
+        for caso in d["colab_casos"]:
+            niv = nivel(caso)
+            partes.append([("●\u00a0", True, COLORES_NIVEL["afectado" if niv == "ok" else niv][1]), (caso, False, P_INK)])
+        texto(slide, lx + 0.48, y - 0.04, la - 0.48, 0.34, partes, 7, nombre="Colaboradores afectados")
+        y += 0.34
+    texto(slide, lx, py + ph - 0.22, la, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
+          6.5, P_GREY, False, nombre="Fuente mapa")
 
 
 # ================================================================ 5. Construir la diapositiva
@@ -829,7 +1324,7 @@ def construir(d, salida_pptx, borrador=False):
     if d.get("recomendaciones"):
         extras.append((("RECOMENDACIONES PREVENTIVAS", _alerta, G_AMBER, d["recomendaciones"]),
                        ("RECOMENDACIONES PREVENTIVAS", WARN_FG, d["recomendaciones"])))
-    hay_agencias = bool(d["agencias"])
+    hay_agencias = bool(d["agencias"]) and not (d.get("radar") and d.get("radar_estilo") == "mapa")
     hay_casos = bool(d.get("colab_casos"))
 
     TOP, BOTTOM = 1.42, 6.86
@@ -838,6 +1333,9 @@ def construir(d, salida_pptx, borrador=False):
     EXTRA_AG = 0.27 if hay_agencias else 0.0      # fila de agencias dentro del panel de impacto
     EXTRA_CO = 0.30 if hay_casos else 0.0         # fila de colaboradores afectados
     EXTRA_AG_TOTAL = EXTRA_AG + EXTRA_CO
+    es_mapa = bool(d.get("radar")) and d.get("radar_estilo") == "mapa"
+    if es_mapa:                                   # panel "Impacto y exposición" con el mapa
+        EXTRA_AG_TOTAL = 2.12 + (0.34 if hay_casos else 0.0) - 0.6
     Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG_TOTAL
     ry0, ry1 = TOP + HEAD + 0.16, 6.02
     MIN_FS = 7.5
@@ -853,13 +1351,21 @@ def construir(d, salida_pptx, borrador=False):
             fs -= 0.5
         return fs, need(fs) <= y1 - y0, max(0.0, need(fs) - (y1 - y0))
 
+    rz, rz_estilo = d.get("radar"), d.get("radar_estilo", "avisos")
+
+    def alto_bloque_radar(RW):
+        return (alto_radar(rz, rz_estilo, RW - 0.44) + 0.10) if (rz and rz_estilo != "mapa") else 0.0
+
+    ESP_DER = 9          # puntos entre viñetas del pronóstico
+
     def fs_der(RW):
         rw = RW - 0.56
-        need = lambda f: sum(alto_tit(t, rw) + alto_lista(it, f, rw) + 0.22 for t, _, it in bloques)
+        y1d = ry1 - alto_bloque_radar(RW)           # el bloque del Radar ocupa la parte baja de la columna
+        need = lambda f: sum(alto_tit(t, rw) + alto_lista(it, f, rw, ESP_DER) + 0.22 for t, _, it in bloques)
         fs = 12.0
-        while fs > MIN_FS and need(fs) > ry1 - ry0:
+        while fs > MIN_FS and need(fs) > y1d - ry0:
             fs -= 0.5
-        return fs, need(fs) <= ry1 - ry0, max(0.0, need(fs) - (ry1 - ry0))
+        return fs, need(fs) <= y1d - ry0, max(0.0, need(fs) - (y1d - ry0))
 
     LX, GAP, ANCHO_TOTAL = 0.5, 0.22, 12.33
 
@@ -869,6 +1375,8 @@ def construir(d, salida_pptx, borrador=False):
         # si no entra en ningún reparto, el que menos se desborde.
         for LW in (7.75, 8.0, 8.25, 8.5, 8.75, 9.0, 9.25, 9.5, 7.5, 7.25, 7.0, 6.75, 6.5):
             RW = ANCHO_TOTAL - LW - GAP
+            if RW < 4.2:                       # el título "PRONÓSTICO DE LLUVIAS" debe entrar en una línea
+                continue
             (a, ok_a, ov_a), (b, ok_b, ov_b) = fs_izq(LW, y1), fs_der(RW)
             ok = ok_a and ok_b
             clave = (ok, min(a, b) if ok else -(ov_a + ov_b), -abs(LW - 7.75))
@@ -879,7 +1387,7 @@ def construir(d, salida_pptx, borrador=False):
     compacto = True                     # un solo diseño: impacto en una fila
     # Espacio de cada sección de la izquierda: (título → lista, entre secciones).
     # Si con el espaciado normal no entra, se prueba uno más compacto.
-    ESPACIADOS = ((0.34, 0.12), (0.30, 0.07))
+    ESPACIADOS = ((0.34, 0.22), (0.32, 0.14)) if es_mapa else ((0.34, 0.12), (0.30, 0.07))
     ESP = ESPACIADOS[0]
     # Cada sección opcional va a la columna (izquierda o derecha) donde deje la letra más grande
     import itertools
@@ -914,14 +1422,16 @@ def construir(d, salida_pptx, borrador=False):
     # ---- Columna izquierda: estatus del día
     lista_x, lista_w = LX + 0.86, LW - 0.86 - 0.28
     y = y0
+    usado = sum(ESP[0] + alto_lista(it, fs, lista_w) + ESP[1] for *_, it in secs)
+    aire = min(0.28, max(0.0, (Y1_COMPACTO - y0 - usado) / max(1, len(secs))))   # reparte el espacio libre
     for i, (titulo, ic, col, items) in enumerate(secs):
         icono(slide, icono_circulo(ic, col), LX + 0.3, y - 0.02, 0.4 if ESP[0] >= 0.34 else 0.36)
         texto(slide, lista_x, y + 0.02, lista_w, 0.26, titulo, 12.5, P_INK, True)
         h = alto_lista(items, fs, lista_w)
         vinetas(slide, lista_x, y + ESP[0], lista_w, h + 0.02, items, fs, "Lista " + titulo.lower())
-        y += ESP[0] + h + ESP[1]
+        y += ESP[0] + h + ESP[1] + aire
         if i < len(secs) - 1:
-            linea_h(slide, lista_x, LX + LW - 0.28, y - ESP[1] / 2)
+            linea_h(slide, lista_x, LX + LW - 0.28, y - (ESP[1] + aire) / 2)
 
     # ---- Impacto en Pacífico (panel tenue con estados en chip)
     impactos = (("Sedes", _edificio, G_BLUE, d["sedes"]),
@@ -942,6 +1452,9 @@ def construir(d, salida_pptx, borrador=False):
             chip(slide, cx + 0.6, py + 0.76, col_w - 0.75, 0.34, "", v, af, 10 if len(v) < 45 else 8.5)
     else:
         px, py, pw, ph = LX + 0.22, 6.14 - EXTRA_AG_TOTAL, LW - 0.44, 0.6 + EXTRA_AG_TOTAL
+    if es_mapa:
+        dibujar_panel_mapa(slide, d, d["radar"], impactos, px, py, pw, ph)
+    elif compacto:
         panel = caja(slide, px, py, pw, ph, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Panel impacto")
         panel.adjustments[0] = 0.25 if not (hay_agencias or hay_casos) else 0.14
         texto(slide, px + 0.2, py, 2.1, 0.6, [[("IMPACTO EN", True, P_BLUE_DK)], [("PACÍFICO SEGUROS", True, P_BLUE_DK)]],
@@ -1006,12 +1519,15 @@ def construir(d, salida_pptx, borrador=False):
     for i, (t, col, items) in enumerate(bloques):
         ht = alto_tit(t, rl_w)
         texto(slide, rl_x, y, rl_w, ht, t.upper(), 13, col, True)
-        h = alto_lista(items, fs2, rl_w)
+        h = alto_lista(items, fs2, rl_w, ESP_DER)
         vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2,
-                t.capitalize() if i >= len(bloques_base) else f"Pronostico {i + 1}")
+                t.capitalize() if i >= len(bloques_base) else f"Pronostico {i + 1}", esp=ESP_DER)
         y += ht + h + 0.22
         if i < len(bloques) - 1:
             linea_h(slide, rl_x, RX + RW - 0.28, y - 0.11)
+    if rz and rz_estilo != "mapa":
+        hr = alto_radar(rz, rz_estilo, RW - 0.44)
+        dibujar_radar(slide, rz, rz_estilo, RX + 0.22, 6.14 - 0.08 - hr, RW - 0.44, hr)
     nb = caja(slide, RX + 0.22, 6.14, RW - 0.44, 0.6, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Nota monitoreo")
     nb.adjustments[0] = 0.25
     icono(slide, icono_circulo(_radar, G_PURPLE), RX + 0.34, 6.25, 0.38)
@@ -1309,7 +1825,7 @@ def leer_configuracion(carpeta_script):
         CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
         MODO_CORREO: automate | outlook | ninguno
     Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
-    conf = {"salida": "", "modo": "outlook"}
+    conf = {"salida": "", "modo": "outlook", "radar": "no", "radar_estilo": "mapa"}
     ruta = os.path.join(carpeta_script, "configuracion.txt")
     if not os.path.exists(ruta):
         return conf
@@ -1326,6 +1842,10 @@ def leer_configuracion(carpeta_script):
                 conf["salida"] = os.path.expandvars(os.path.expanduser(v))
             elif k == "MODO_CORREO" and v:
                 conf["modo"] = v.lower()
+            elif k == "RADAR" and v:
+                conf["radar"] = v.lower()
+            elif k == "RADAR_ESTILO" and v:
+                conf["radar_estilo"] = v.lower()
     return conf
 
 
@@ -1509,6 +2029,10 @@ def main():
         af = [n for n, e in d["agencias"] if es_afectado(e)]
         print(f"Agencias/sedes Pacífico: {len(d['agencias'])} revisadas, "
               + (f"{len(af)} con afectación ({', '.join(af)})." if af else "ninguna con afectación."))
+        if d["ag_fecha"] and d["fecha"] and \
+                re.sub(r"\D", "", d["ag_fecha"])[:4] != re.sub(r"\D", "", d["fecha"])[:4]:
+            print(f"  Aviso: el mensaje de agencias es del {d['ag_fecha']} y el reporte es del {d['fecha']}. "
+                  "Pega el mensaje de agencias de hoy.")
     for campo, nombre in (("lluvias", "LLUVIAS"), ("vias", "VÍAS RESTRINGIDAS"), ("rios", "RÍOS Y QUEBRADAS")):
         if not d[campo]:
             print(f"  Aviso: la sección {nombre} quedó vacía. Revisa que el mensaje la traiga.")
@@ -1516,6 +2040,24 @@ def main():
         d["numero"] = siguiente_numero(a.salida)
         if d["numero"]:
             print(f"Número de reporte no indicado: se usa el siguiente al último generado ({d['numero']}).")
+    if config["radar"] in ("si", "sí", "yes", "1"):
+        datos_radar, origen = cargar_radar([carpeta_script, a.salida])
+        if datos_radar:
+            d["radar"] = resumir_radar(datos_radar, d["fecha"], [n for n, _ in d["agencias"]] or None)
+            d["radar_estilo"] = ("mapa" if config["radar_estilo"].startswith("mapa") else
+                                 "sedes" if config["radar_estilo"].startswith("sede") else "avisos")
+            rz = d["radar"]
+            print(f"Observatorio Pacífico: {origen} · lluvias en {len(rz['lluvias'])} dptos · "
+                  f"quebradas en {len(rz['quebradas'])} dptos · "
+                  f"{sum(1 for s_ in rz['sedes'] if s_['nivel'])} sede(s) en zona con aviso")
+            capt = fin_local(datos_radar.get("at"))
+            if capt and capt != rz["dia"]:
+                print(f"  Aviso: los datos del Observatorio se descargaron el {capt[8:]}/{capt[5:7]} y el reporte es del "
+                      f"{rz['dia'][8:]}/{rz['dia'][5:7]}. Descarga el snapshot de hoy.")
+            if not rz["lluvias"] and not rz["quebradas"]:
+                print("  Aviso: el Observatorio no tiene avisos para la fecha del reporte (¿snapshot de otro día?).")
+        else:
+            print(f"Observatorio Pacífico: {origen}. El reporte sale sin ese bloque.")
     faltan = [c for c in ("numero", "fecha") if not d[c]]
     if faltan:
         sys.exit("Falta completar en el archivo de datos: " + ", ".join(f.upper() for f in faltan)

@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-12b (Observatorio Pacífico, mapa)"
+VERSION = "2026-11-12d (Observatorio + OneDrive)"
 
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
@@ -1831,7 +1831,7 @@ def leer_configuracion(carpeta_script):
         CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
         MODO_CORREO: automate | outlook | ninguno
     Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
-    conf = {"salida": "", "modo": "outlook", "radar": "no", "radar_estilo": "mapa"}
+    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa"}
     ruta = os.path.join(carpeta_script, "configuracion.txt")
     if not os.path.exists(ruta):
         return conf
@@ -1888,6 +1888,27 @@ def ruta_en_onedrive(ruta_local):
         if p.lower().startswith("onedrive"):
             return "/" + "/".join(partes[i + 1:])
     return ""
+
+
+def buscar_salida_onedrive():
+    """Si CARPETA_SALIDA está vacía, busca en tu OneDrive la carpeta que ya usa el flujo
+    (la que contiene '_para_envio'). Devuelve la ruta o ''."""
+    candidatas = []
+    for var in ("OneDriveCommercial", "OneDrive"):
+        raiz = os.environ.get(var)
+        if not raiz or not os.path.isdir(raiz):
+            continue
+        base_prof = raiz.rstrip("\\/").count(os.sep)
+        for dirpath, dirnames, _ in os.walk(raiz):
+            if dirpath.count(os.sep) - base_prof >= 4:
+                dirnames[:] = []
+                continue
+            if "_para_envio" in dirnames:
+                candidatas.append(dirpath)
+            dirnames[:] = [n for n in dirnames if not n.startswith((".", "_vista"))]
+    if not candidatas:
+        return ""
+    return max(candidatas, key=lambda c: os.path.getmtime(os.path.join(c, "_para_envio")))
 
 
 def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
@@ -1949,12 +1970,18 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
                 '<div style="font:12px Segoe UI,Arial;color:#555;margin-bottom:16px">Adjunto: '
                 + html.escape(os.path.basename(pptx_path)) + ' · Desde: buzón de Continuidad (según el flujo)</div>'
                 + cuerpo + '</body></html>')
-    print("\nListo para Power Automate:")
-    print(f"  {destino}")
+    print("\n" + "-" * 70)
     if datos["ruta_pptx_onedrive"]:
-        print(f"  Ruta del PPT en OneDrive (para el flujo): {datos['ruta_pptx_onedrive']}")
+        print("[OK] ONEDRIVE / POWER AUTOMATE: PPT, PNG y JSON guardados en OneDrive")
+        print(f"  PPT en OneDrive: {datos['ruta_pptx_onedrive']}")
+        print(f"  JSON que dispara el flujo: {destino}")
+        print("  Espera a que OneDrive termine de sincronizar (check verde) y te llegará la aprobación.")
     else:
-        print("  Aviso: la carpeta de salida no parece estar dentro de OneDrive; el flujo no podrá tomar el PPT.")
+        print("[X] ONEDRIVE / POWER AUTOMATE: LOS ARCHIVOS NO ESTÁN EN ONEDRIVE")
+        print(f"  Se guardaron en: {carpeta_salida}")
+        print("  El flujo NO se va a disparar. En configuracion.txt escribe la carpeta de OneDrive, por ejemplo:")
+        print("  CARPETA_SALIDA: C:\\Users\\<usuario>\\OneDrive - Pacifico Seguros\\Reporte FEN\\Reportes generados")
+    print("-" * 70)
     print(f"  Vista previa del correo: {previa}")
     print("  En unos minutos te llegará la aprobación (Teams/Outlook). Al aprobarla, se envía el correo "
           "desde el buzón de Continuidad.")
@@ -2013,6 +2040,10 @@ def main():
     ap.add_argument("--borrador", action="store_true", help="generar aunque falten las 2 confirmaciones")
     ap.add_argument("--sin-correo", action="store_true", help="solo generar el PPT y el PNG, sin el paso de correo")
     config = leer_configuracion(carpeta_script)
+    salida_detectada = ""
+    if config["modo"] == "automate" and not config["salida"]:
+        salida_detectada = buscar_salida_onedrive()
+        config["salida"] = salida_detectada
     ap.add_argument("--salida", default=config["salida"] or os.path.join(carpeta_script, "Reportes generados"),
                     help="carpeta donde guardar los PPT y PNG (por defecto: configuracion.txt o 'Reportes generados')")
     a = ap.parse_args()
@@ -2024,6 +2055,16 @@ def main():
                  "Ponle ese nombre a tu .txt o indica cuál usar al final del comando.")
     print(f"  Datos:  {os.path.abspath(a.datos)}")
     print(f"  Salida: {os.path.abspath(a.salida)}   (correo: {config['modo']})")
+    if config["modo"] == "automate":
+        if salida_detectada:
+            print("  [!] CARPETA_SALIDA está vacía en configuracion.txt; uso la carpeta de OneDrive del flujo:")
+            print(f"      {salida_detectada}")
+            print("      Escríbela en configuracion.txt para no depender de la búsqueda.")
+        if ruta_en_onedrive(os.path.join(a.salida, "x")):
+            print("  [OK] La salida está en OneDrive: el flujo de Power Automate se disparará.")
+        else:
+            print("  [X] La salida NO está en OneDrive: el flujo de Power Automate no se disparará.")
+            print("      Revisa CARPETA_SALIDA en configuracion.txt (debe ser tu carpeta de OneDrive).")
     d = leer_datos(a.datos)
     print(f"Leído: {len(d['lluvias'])} lluvias · {len(d['vias'])} vías · {len(d['rios'])} ríos/quebradas · "
           f"{len(d['p1']) + len(d['p2'])} pronósticos"
@@ -2046,24 +2087,39 @@ def main():
         d["numero"] = siguiente_numero(a.salida)
         if d["numero"]:
             print(f"Número de reporte no indicado: se usa el siguiente al último generado ({d['numero']}).")
-    if config["radar"] in ("si", "sí", "yes", "1"):
+    print("-" * 70)
+    if config["radar"] not in ("si", "sí", "yes", "1"):
+        print("[--] OBSERVATORIO PACÍFICO: DESACTIVADO (configuracion.txt dice RADAR: no).")
+        print("  El reporte sale sin el mapa. Para activarlo escribe  RADAR: si")
+    else:
         datos_radar, origen = cargar_radar([carpeta_script, a.salida])
-        if datos_radar:
+        if not datos_radar:
+            print("[X] OBSERVATORIO PACÍFICO: SIN ACCESO")
+            print(f"  {origen}.")
+            print(f"  -> Guarda el snapshot.json de hoy en: {carpeta_script}")
+            print("  El reporte sale sin el mapa (con la fila de agencias de siempre).")
+        else:
             d["radar"] = resumir_radar(datos_radar, d["fecha"], [n for n, _ in d["agencias"]] or None)
             d["radar_estilo"] = ("mapa" if config["radar_estilo"].startswith("mapa") else
                                  "sedes" if config["radar_estilo"].startswith("sede") else "avisos")
             rz = d["radar"]
-            print(f"Observatorio Pacífico: {origen} · lluvias en {len(rz['lluvias'])} dptos · "
-                  f"quebradas en {len(rz['quebradas'])} dptos · "
-                  f"{sum(1 for s_ in rz['sedes'] if s_['nivel'])} sede(s) en zona con aviso")
+            descargado = origen.startswith("descargado")
+            print("[OK] OBSERVATORIO PACÍFICO: " + ("datos descargados de la página" if descargado
+                  else "la página no respondió; se usan los datos del snapshot.json guardado"))
             capt = fin_local(datos_radar.get("at"))
+            if capt:
+                print(f"  Datos del {capt[8:]}/{capt[5:7]}/{capt[:4]}"
+                      + ("" if descargado else f" (archivo: {os.path.join(carpeta_script, 'snapshot.json')})"))
+            print(f"  Lluvias en {len(rz['lluvias'])} dptos · quebradas en {len(rz['quebradas'])} dptos · "
+                  f"{sum(1 for s_ in rz['sedes'] if s_['nivel'])} sede(s) en zona con aviso")
             if capt and capt != rz["dia"]:
-                print(f"  Aviso: los datos del Observatorio se descargaron el {capt[8:]}/{capt[5:7]} y el reporte es del "
-                      f"{rz['dia'][8:]}/{rz['dia'][5:7]}. Descarga el snapshot de hoy.")
+                print(f"  [!] AVISO: el snapshot es del {capt[8:]}/{capt[5:7]} y el reporte es del "
+                      f"{rz['dia'][8:]}/{rz['dia'][5:7]}. Guarda el snapshot.json de hoy y vuelve a ejecutar.")
             if not rz["lluvias"] and not rz["quebradas"]:
-                print("  Aviso: el Observatorio no tiene avisos para la fecha del reporte (¿snapshot de otro día?).")
-        else:
-            print(f"Observatorio Pacífico: {origen}. El reporte sale sin ese bloque.")
+                print("  [!] AVISO: no hay avisos de lluvias ni quebradas para la fecha del reporte; el mapa sale en gris.")
+            if d["radar_estilo"] == "mapa" and not ruta_geojson():
+                print("  [!] AVISO: falta recursos\\peru_departamentos.geojson; el mapa no se puede dibujar.")
+    print("-" * 70)
     faltan = [c for c in ("numero", "fecha") if not d[c]]
     if faltan:
         sys.exit("Falta completar en el archivo de datos: " + ", ".join(f.upper() for f in faltan)

@@ -1,68 +1,73 @@
-# Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt
+# Ejecuta:  python "generar reporte fen.py" mensaje_whatsapp.txt   (o el botón ▶ de VS Code)
+# Las líneas que empiezan con # son instrucciones: el script las ignora.
+#
+# Antes de ejecutar, revisa que en la carpeta del script esté el snapshot.json DE HOY
+# (datos del Observatorio Pacífico para el mapa). Si es de otro día, el script te avisa.
 # ============================================================
 #  1) Borra el ejemplo y pega aquí el mensaje del Reporte FEN, tal cual llegó por WhatsApp.
-#     Si trae "Medidas", se incluye sola; si no la trae, no pasa nada.
+#     Si trae "Medidas", "Recomendaciones" o "Vigencia", se incluyen solas; si no, no pasa nada.
+#     La parte "Impacto en infraestructura Credicorp" se ignora: el impacto de Pacífico
+#     sale del mensaje de agencias (2) y de [COLABORADORES AFECTADOS].
 # ============================================================
 
-🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*
-📅 *Fecha:* 04/11/2026
-🕕 *Corte:* 15:00 horas
+🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL
 
-⛈️ *Lluvias reportadas* 
+📅 Fecha: 12/11/2026
+🕕 Corte: 08:30 horas
 
-▪️ *Tumbes y Piura:* Lluvias ligeras en Tumbes y moderadas en Piura zonas altas de Tambogrande.
-▪️ *Cajamarca* :  Lluvias moderadas en la ciudad con presencia de relampagos en zonas altas.
-▪️ *Ancash* : Lluvias moderadas con presencia de relampagos en zonas altas de Huaraz.
-▪️ *Amazonas y San Martin:* Lluvias moderadas en Tarapoto, Chachapoyas (zonas agricolas). En Moyobamba comienzan lluvias ligeras con presencia de relámpagos en zonas altas.
-▪️ *Huanuco y Pasco :*  Lluvias ligeras en Tingo Maria y Oxapampa (zonas agricolas)
-▪️ *Chiclayo y Trujillo:* Lluvias ligeras en zonas altas.
-▪️ *Junin* : Lluvias moderadas en la Huancayo y zonas altas con presencia de relampagos.
-▪️ *Lima:* Lluvias ligeras en Chosica y zonas altas de Matucana.
+⛈️ Lluvias reportadas:
 
-🏞️ *Ríos y quebradas:*
+▪️ Lima: Lloviznas en Lima Metropolitana, principalmente en los distritos del sur: Villa María del Triunfo, Villa El Salvador, Surco, Chorrillos y Lurín.
+▪️ Cajamarca: Lluvias moderadas en Jaén.
+▪️ Tumbes: Lluvias ligeras en los distritos de Matapalo, Cañaveral y San Jacinto.
+▪️ Piura: Lluvias ligeras en Huancabamba, Huarmaca y Sullana.
+▪️ Lambayeque: Lluvias ligeras en Chiclayo y Chongoyape.
+▪️ La Libertad: Lluvias ligeras en Usquil.
 
-▪️ Huanuco - Leoncio Prado - Tingo Maria (deslizamiento de lodo) con afectación en vías rurales.
+🚧 Vías restringidas:
 
-▪️ Lima - Chosica - Cajamarquilla en la zona de Unión Progreso, activacion de quebrada (afectacion en algunas casa cercanas del poblado Cajamarquilla)
+▪️ Ucayali: Carretera Longitudinal de la Selva Norte (PE-SN), sector Padre Abad, con tránsito restringido en un solo sentido entre los km 441+120 y km 441+350.
 
-🚧 *Vías restringidas:*
+🌊 Ríos, quebradas y otras afectaciones:
 
-▪️ *Ucayali:* Carretera Federico Basadre (PE-5N), sector Santa Rosa (km 441+120 al 441+350), interrumpida en ambos sentidos. Se perdieron 140 m de plataforma y Provías trabaja con 9 máquinas en dos frentes. Ruta alterna por Villa Rica.
+▪️ Sin reporte de nuevas afectaciones.
 
-▪️ *Cajamarca:* Carretera Longitudinal de la Sierra Norte, km 68 (límite con Piura). Tránsito parcial de vehículos y peatones; puede cambiar según la intensidad de las lluvias.
+🏢 Impacto en infraestructura Credicorp:
 
-▪️ *Piura:* Carretera La Matanza–Huancabamba, sin reporte de reapertura.
+▪️ Infraestructura: Sin afectación en agencias.
+▪️ Colaboradores: Sin afectación en colaboradores.
 
-📡 *PRONÓSTICO – HOY*(Hasta 13:00 hrs de mañana 5/11)
+Pronóstico de hoy:
 
- *SIERRA* : Se prevén precipitaciones de moderada a extrema intensidad en la sierra norte y de moderada intensidad en la sierra centro y sur. Estos eventos podrían estar acompañados de descargas eléctricas y ráfagas de viento. Asimismo, se prevé la ocurrencia de granizo en localidades ubicadas por encima de los 2800 m s. n. m. de la sierra centro y sur.
+COSTA: Se prevén lluvias de ligera a moderada intensidad en Tumbes y Piura. Asimismo, se esperan lloviznas de ligera intensidad en la costa centro y sur.
 
- *SELVA* : Se prevén lluvias y/o chubascos de ligera intensidad, en la selva alta centro y sur, principalmente. Acompañados de descargas eléctricas y ráfagas de viento. Estos eventos tendrían mayor probabilidad de ocurrencia durante las horas de la tarde, noche y madrugada.
+SIERRA: Se prevén precipitaciones de moderada a fuerte intensidad en la sierra centro y sur, acompañadas de descargas eléctricas y ráfagas de viento. Asimismo, se espera la ocurrencia de nieve y granizo en localidades ubicadas por encima de los 2800 m s. n. m.
 
- *COSTA* : Se prevén lluvias/lluvia de moderada a extrema intensidad en Tumbes y la costa interior de Piura. Por otro lado, en la costa centro y sur se presentarían lloviznas de ligera a fuerte intensidad.
+SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad en la selva norte y de forma localizada en la selva alta de Amazonas y San Martín, acompañados de descargas eléctricas y ráfagas de viento.
 
-_Se mantiene el monitoreo._
+📡 Se mantiene el monitoreo.
 
 # ============================================================
-#  2) (Opcional) Pega aquí el mensaje de agencias de Pacífico, tal cual llegó.
-#     Con él se completa "Sedes" (verde: sin afectación, ámbar: leve, rojo: seria).
-#     Si no llegó, borra esta parte o déjala vacía.
+#  2) Pega aquí el mensaje de agencias de Pacífico DE HOY, tal cual llegó.
+#     Con él se arma la lista de sedes con check (✓ sin afectación, ⚠ con afectación).
+#     Cada línea "* Ciudad: estado" es una sede. Arequipa tiene dos (Yanahuara y Cayma).
+#     Si no llegó, deja esta parte vacía.
 # ============================================================
 
-*🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS PACIFICO*
-📅*Fecha: 05/11/2026*
-🕕*Corte: 09:30 horas*
+*🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
+📅*Fecha: 12/11/2026*
+🕕*Corte: 11:00 horas*
 
-* Piura: Sin afectaciones reportadas.
+* Piura: Sin afectaciones reportadas ambos locales.
 * Chiclayo: Sin afectaciones reportadas.
 * Trujillo: Sin afectaciones reportadas.
 * Huancayo: Sin afectaciones reportadas.
 * Arequipa (Yanahuara): Sin afectaciones reportadas.
 * Arequipa (Cayma): Sin afectaciones reportadas.
-* Cusco: Sin afectaciones reportadas.
-* Edificios Lima: Pequeñas filtraciones, situacion controlada
+* Cusco: Sin afectaciones 
+* Edificios Lima: Sin afectaciones reportadas
 
-*Resumen: Provincia Sin afectaciones reportadas, Lima filtraciones controladas*
+*Resumen: Provincia y Lima Sin afectaciones reportadas*
 
 Saludos,
 
@@ -71,9 +76,9 @@ Saludos,
 # Persona 1 y 2: escribe el nombre cuando cada una confirme por WhatsApp.
 #   Sin las dos confirmaciones no se genera el reporte ni se envía el correo.
 [CONFIRMACIONES]
-NUMERO:
-Persona 1:
-Persona 2:
+NUMERO: 007
+Persona 1: Paola
+Persona 2: Elizabeth
 
 # Colaboradores afectados: un caso por línea, con el formato  Lugar: detalle  (corto).
 #   Si no hay casos, deja la sección vacía.  Ejemplos:
@@ -86,3 +91,6 @@ Persona 2:
 [IMPACTO PACIFICO]
 Sedes: Sin afectación reportada.
 Colaboradores: Sin afectación reportada.
+
+[PIE DE PAGINA]
+Pacífico Seguros

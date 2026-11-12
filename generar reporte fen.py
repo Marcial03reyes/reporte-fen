@@ -1150,7 +1150,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
     lx = px + 0.2
     la = pw - 0.35 - mw - 0.25
     texto(slide, lx, py + 0.1, la, 0.26, "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11, P_BLUE_DK, True)
-    y = py + 0.42
+    y = py + 0.38
     for etq, ic, col, valor in impactos:
         v = valor or "Sin afectación reportada."
         af = nivel(v)
@@ -1387,7 +1387,7 @@ def construir(d, salida_pptx, borrador=False):
     compacto = True                     # un solo diseño: impacto en una fila
     # Espacio de cada sección de la izquierda: (título → lista, entre secciones).
     # Si con el espaciado normal no entra, se prueba uno más compacto.
-    ESPACIADOS = ((0.34, 0.22), (0.32, 0.14)) if es_mapa else ((0.34, 0.12), (0.30, 0.07))
+    ESPACIADOS = ((0.34, 0.22), (0.32, 0.14), (0.30, 0.07)) if es_mapa else ((0.34, 0.12), (0.30, 0.07))
     ESP = ESPACIADOS[0]
     # Cada sección opcional va a la columna (izquierda o derecha) donde deje la letra más grande
     import itertools
@@ -1396,13 +1396,19 @@ def construir(d, salida_pptx, borrador=False):
         secs_o = secs_base + [e[0] for e, lado in zip(extras, lados) if lado == "izq"]
         bloques_o = bloques_base + [e[1] for e, lado in zip(extras, lados) if lado == "der"]
         opciones.append((secs_o, bloques_o))
-    mejor = None
-    for ESP in ESPACIADOS:
-        for secs, bloques in opciones:
-            m = elegir(Y1_COMPACTO)
-            if mejor is None or m[0] > mejor[0][0]:
-                mejor = (m, secs, bloques, ESP)
-        if mejor[0][0][0] and mejor[0][0][1] >= 9:      # entra con letra legible: no compactar
+    # Con el mapa, si la columna izquierda no entra, el panel de impacto se hace más bajo.
+    alturas = [EXTRA_AG_TOTAL - r for r in (0.0, 0.08, 0.16)] if es_mapa else [EXTRA_AG_TOTAL]
+    for EXTRA_AG_TOTAL in alturas:
+        Y1_COMPACTO = 6.08 - EXTRA_AG_TOTAL
+        mejor = None
+        for ESP in ESPACIADOS:
+            for secs, bloques in opciones:
+                m = elegir(Y1_COMPACTO)
+                if mejor is None or m[0] > mejor[0][0]:
+                    mejor = (m, secs, bloques, ESP)
+            if mejor[0][0][0] and mejor[0][0][1] >= 9:      # entra con letra legible: no compactar
+                break
+        if mejor[0][0][0]:                                  # entra: no achicar más el panel
             break
     (m, secs, bloques, ESP) = mejor
     (cabe, _, _), LW, RW, fs, fs2 = m

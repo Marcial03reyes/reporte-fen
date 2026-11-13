@@ -52,9 +52,10 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-13b (letra más grande y PNG 4K)"
+VERSION = "2026-11-13c (títulos ExtraBold con respaldo)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
+XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
 
@@ -654,9 +655,10 @@ def texto(slide, x, y, w, h, partes, size, color=NAVY, bold=False, align=PP_ALIG
             r = p.add_run()
             r.text = t
             r.font.size = Pt(size)
-            r.font.bold = b is True
+            xb = b == "xb" and XB_OK
+            r.font.bold = (b is True) or (b == "xb" and not XB_OK)   # sin ExtraBold: al menos negrita
             r.font.color.rgb = c
-            r.font.name = FONT_XB if b == "xb" else FONT
+            r.font.name = FONT_XB if xb else FONT
     return tb
 
 
@@ -1999,12 +2001,12 @@ def preparar_envio_automate(d, pptx_path, png_path, carpeta_salida):
 
 # ================================================================ 7. Principal
 def instalar_fuentes():
-    """En Windows, instala Nunito para el usuario actual (sin permisos de administrador) si aún no está."""
+    """En Windows, instala Nunito (Regular, Bold y ExtraBold) para el usuario actual, sin permisos
+    de administrador, y confirma si 'Nunito ExtraBold' quedó disponible para los títulos."""
+    global XB_OK
     if platform.system() != "Windows":
         return
     carpeta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recursos", "fuentes")
-    if not os.path.isdir(carpeta):
-        return
     import ctypes
     import winreg
     destino = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Windows", "Fonts")
@@ -2023,7 +2025,13 @@ def instalar_fuentes():
         nuevas += 1
     if nuevas:
         ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001D, 0, 0, 0, 1000, None)
-        print("Fuente Nunito instalada. Si PowerPoint estaba abierto, ciérralo y vuelve a ejecutar el script.")
+    windir = os.environ.get("WINDIR", r"C:\Windows")
+    XB_OK = any(os.path.exists(os.path.join(c, "Nunito-ExtraBold.ttf")) for c in (destino, os.path.join(windir, "Fonts")))
+    if XB_OK and nuevas:
+        print("[OK] Fuente Nunito ExtraBold instalada para los títulos.")
+        print("     Si PowerPoint estaba abierto, ciérralo (también en el Administrador de tareas) y vuelve a ejecutar.")
+    elif not XB_OK:
+        print("[!] Falta recursos\\fuentes\\Nunito-ExtraBold.ttf: los títulos salen en negrita normal.")
 
 
 def siguiente_numero(carpeta):

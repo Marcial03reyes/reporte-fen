@@ -10,40 +10,38 @@
 #     sale del mensaje de agencias (2) y de [COLABORADORES AFECTADOS].
 # ============================================================
 
-🇵🇪 REPORTE FENOMENOLÓGICO NACIONAL
+🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*
+📅 *Fecha:* 13/11/2026
+🕗 *Corte:* 08:00 horas
 
-📅 Fecha: 12/11/2026
-🕕 Corte: 08:30 horas
+⛈️ *Lluvias reportadas:*
 
-⛈️ Lluvias reportadas:
+▪️ *Puno:* Lluvias fuertes durante la madrugada en Juliaca (San Román).
 
-▪️ Lima: Lloviznas en Lima Metropolitana, principalmente en los distritos del sur: Villa María del Triunfo, Villa El Salvador, Surco, Chorrillos y Lurín.
-▪️ Cajamarca: Lluvias moderadas en Jaén.
-▪️ Tumbes: Lluvias ligeras en los distritos de Matapalo, Cañaveral y San Jacinto.
-▪️ Piura: Lluvias ligeras en Huancabamba, Huarmaca y Sullana.
-▪️ Lambayeque: Lluvias ligeras en Chiclayo y Chongoyape.
-▪️ La Libertad: Lluvias ligeras en Usquil.
+🚧 *Vías restringidas:*
 
-🚧 Vías restringidas:
+▪️ *Ucayali:* Carretera Longitudinal de la Selva Norte (PE-5N), sector Padre Abad, con tránsito restringido en un solo sentido entre los km 441+120 y 441+350.
 
-▪️ Ucayali: Carretera Longitudinal de la Selva Norte (PE-SN), sector Padre Abad, con tránsito restringido en un solo sentido entre los km 441+120 y km 441+350.
+🌊 *Ríos, quebradas y otras afectaciones:*
 
-🌊 Ríos, quebradas y otras afectaciones:
+▪️ *Puno:* Inundación de diferentes sectores del mercado Túpac Amaru de Juliaca por acumulación de agua, con afectación a comerciantes.
 
-▪️ Sin reporte de nuevas afectaciones.
+▪️ *Pasco:* Las lluvias intensas del 12/11 dañaron la infraestructura de transporte en el C. P. Independencia, distrito de Páucar, provincia Daniel Alcides Carrión (COEN).
 
-🏢 Impacto en infraestructura Credicorp:
+🏢 *Impacto en infraestructura Credicorp:*
 
-▪️ Infraestructura: Sin afectación en agencias.
-▪️ Colaboradores: Sin afectación en colaboradores.
+▪️ *Infraestructura:* Sin afectación en agencias.
+▪️ *Colaboradores:* Sin afectación en colaboradores.
 
-Pronóstico de hoy:
+📡 *Pronóstico de hoy (SENAMHI – aviso vigente hasta las 13:00 h del 13/11)*
 
-COSTA: Se prevén lluvias de ligera a moderada intensidad en Tumbes y Piura. Asimismo, se esperan lloviznas de ligera intensidad en la costa centro y sur.
+▪️ *COSTA:* Lluvias de ligera a fuerte intensidad, principalmente al interior de Tumbes, y de ligera a moderada intensidad al interior de Piura. Lloviznas de ligera intensidad en la costa centro y sur.
 
-SIERRA: Se prevén precipitaciones de moderada a fuerte intensidad en la sierra centro y sur, acompañadas de descargas eléctricas y ráfagas de viento. Asimismo, se espera la ocurrencia de nieve y granizo en localidades ubicadas por encima de los 2800 m s. n. m.
+▪️ *SIERRA:* Lluvias de moderada a fuerte intensidad en la sierra centro y sur, y de ligera a moderada en la sierra norte, con descargas eléctricas y ráfagas de viento. Nieve por encima de los 3,900 m s. n. m. y granizo por encima de los 2,800 m s. n. m. En Arequipa, mayor probabilidad de lluvias moderadas en los distritos orientales de la provincia.
 
-SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad en la selva norte y de forma localizada en la selva alta de Amazonas y San Martín, acompañados de descargas eléctricas y ráfagas de viento.
+▪️ *SELVA:* Lluvias localizadas y/o chubascos de ligera a moderada intensidad en la selva norte y centro-sur, con descargas eléctricas y ráfagas de viento, con mayor probabilidad durante la noche y madrugada.
+
+⚠️ *Alerta:* Posible activación de quebradas (nivel rojo) hasta el 13/11 en provincias de Arequipa y Huancavelica.
 
 📡 Se mantiene el monitoreo.
 
@@ -55,8 +53,8 @@ SELVA: Se prevén lluvias y/o chubascos de ligera a moderada intensidad en la se
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
-📅*Fecha: 12/11/2026*
-🕕*Corte: 11:00 horas*
+📅Fecha: 13/11/2026
+🕕Corte: 09:26 horas
 
 * Piura: Sin afectaciones reportadas ambos locales.
 * Chiclayo: Sin afectaciones reportadas.

@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-13 (letra y títulos)"
+VERSION = "2026-11-13b (letra más grande y PNG 4K)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
@@ -1163,10 +1163,10 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         icono(slide, icono_circulo(ic, col), lx, y + 0.02, 0.38)
         ancho_chip = la - 0.48
         fs_chip = 10.5
-        while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.36:
+        while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.34:
             fs_chip -= 0.5
-        chip(slide, lx + 0.48, y, ancho_chip, 0.38, etq, v, af, fs_chip)
-        y += 0.44
+        chip(slide, lx + 0.48, y, ancho_chip, 0.36, etq, v, af, fs_chip)
+        y += 0.41
         if etq.startswith("Sedes"):                 # cuadrícula: ✓ Ciudad (n)
             sedes_l = lista_sedes(d)
             por_fila = 4
@@ -1174,10 +1174,10 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
             for k_, (ciudad, cant, nv) in enumerate(sedes_l):
                 marca = ("✓\u00a0", True, OK_FG) if nv == "ok" else ("⚠\u00a0", True, COLORES_NIVEL[nv][1])
                 nom = ciudad + (f" ({cant})" if cant > 1 else "")
-                texto(slide, lx + 0.62 + (k_ % por_fila) * cw, y - 0.04 + (k_ // por_fila) * 0.21, cw, 0.2,
+                texto(slide, lx + 0.62 + (k_ % por_fila) * cw, y - 0.04 + (k_ // por_fila) * 0.2, cw, 0.2,
                       [[marca, (nom, nv != "ok", P_INK if nv == "ok" else COLORES_NIVEL[nv][1])]], 9.5,
                       nombre="Sede " + ciudad)
-            y += -(-len(sedes_l) // por_fila) * 0.21 + 0.06
+            y += -(-len(sedes_l) // por_fila) * 0.2 + 0.04
     if d.get("colab_casos"):
         partes = []
         for caso in d["colab_casos"]:
@@ -1346,8 +1346,8 @@ def construir(d, salida_pptx, borrador=False):
 
     def fs_izq(LW, y1):
         lw = LW - 0.86 - 0.28
-        need = lambda f: sum(ESP[0] + alto_lista(it, f, lw) + ESP[1] for *_, it in secs)
-        fs = 12.0
+        need = lambda f: sum(ESP[0] + alto_lista(it, f, lw, ESP_IZQ) + ESP[1] for *_, it in secs)
+        fs = 12.5
         while fs > MIN_FS and need(fs) > y1 - y0:
             fs -= 0.5
         return fs, need(fs) <= y1 - y0, max(0.0, need(fs) - (y1 - y0))
@@ -1358,6 +1358,7 @@ def construir(d, salida_pptx, borrador=False):
         return (alto_radar(rz, rz_estilo, RW - 0.44) + 0.10) if (rz and rz_estilo != "mapa") else 0.0
 
     ESP_DER = 9          # puntos entre viñetas del pronóstico
+    ESP_IZQ = 2          # puntos entre viñetas del estatus (poco: así la letra puede ser más grande)
 
     def fs_der(RW):
         rw = RW - 0.56
@@ -1374,13 +1375,13 @@ def construir(d, salida_pptx, borrador=False):
         mejor = None
         # Reparte el ancho entre columnas: primero que todo entre; luego, la letra más grande;
         # si no entra en ningún reparto, el que menos se desborde.
-        for LW in (7.75, 8.0, 8.25, 8.5, 8.75, 9.0, 9.25, 9.5, 7.5, 7.25, 7.0, 6.75, 6.5):
+        for LW in (7.75, 7.9, 8.05, 8.2, 8.35, 8.5, 8.65, 7.5, 7.25, 7.0, 6.75, 6.5):
             RW = ANCHO_TOTAL - LW - GAP
-            if RW < 4.2:                       # el título "PRONÓSTICO DE LLUVIAS" debe entrar en una línea
+            if RW < 3.45:                      # por debajo, el título del pronóstico ya no entra legible
                 continue
             (a, ok_a, ov_a), (b, ok_b, ov_b) = fs_izq(LW, y1), fs_der(RW)
             ok = ok_a and ok_b
-            clave = (ok, min(a, b) if ok else -(ov_a + ov_b), -abs(LW - 7.75))
+            clave = (ok, min(a, b) if ok else -(ov_a + ov_b), a + b, -abs(LW - 7.75))
             if mejor is None or clave > mejor[0]:
                 mejor = (clave, LW, RW, a, b)
         return mejor
@@ -1398,7 +1399,7 @@ def construir(d, salida_pptx, borrador=False):
         bloques_o = bloques_base + [e[1] for e, lado in zip(extras, lados) if lado == "der"]
         opciones.append((secs_o, bloques_o))
     # Con el mapa, si la columna izquierda no entra, el panel de impacto se hace más bajo.
-    alturas = [EXTRA_AG_TOTAL - r for r in (0.0, 0.08, 0.16)] if es_mapa else [EXTRA_AG_TOTAL]
+    alturas = [EXTRA_AG_TOTAL - r for r in (0.0, 0.08, 0.16, 0.24)] if es_mapa else [EXTRA_AG_TOTAL]
     for EXTRA_AG_TOTAL in alturas:
         Y1_COMPACTO = 6.08 - EXTRA_AG_TOTAL
         mejor = None
@@ -1412,7 +1413,7 @@ def construir(d, salida_pptx, borrador=False):
         if mejor[0][0][0]:                                  # entra: no achicar más el panel
             break
     (m, secs, bloques, ESP) = mejor
-    (cabe, _, _), LW, RW, fs, fs2 = m
+    (cabe, *_), LW, RW, fs, fs2 = m
     RX = LX + LW + GAP
 
     # ---- Tarjetas blancas con encabezado tenue
@@ -1424,18 +1425,21 @@ def construir(d, salida_pptx, borrador=False):
         h = caja(slide, x, TOP, w, HEAD, P_TINT, None, MSO_SHAPE.ROUND_2_SAME_RECTANGLE, nom + " encabezado")
         h.adjustments[0] = 0.32
         h.adjustments[1] = 0.0
-        texto(slide, x + 0.3, TOP, w - 0.5, HEAD, titulo, 16, color, "xb", anchor=MSO_ANCHOR.MIDDLE)
+        fs_t = 16.0
+        while fs_t > 13 and ancho_pt(titulo, fs_t, True) * 1.06 > (w - 0.5) * 72:
+            fs_t -= 0.5
+        texto(slide, x + 0.3, TOP, w - 0.5, HEAD, titulo, fs_t, color, "xb", anchor=MSO_ANCHOR.MIDDLE)
 
     # ---- Columna izquierda: estatus del día
     lista_x, lista_w = LX + 0.86, LW - 0.86 - 0.28
     y = y0
-    usado = sum(ESP[0] + alto_lista(it, fs, lista_w) + ESP[1] for *_, it in secs)
+    usado = sum(ESP[0] + alto_lista(it, fs, lista_w, ESP_IZQ) + ESP[1] for *_, it in secs)
     aire = min(0.28, max(0.0, (Y1_COMPACTO - y0 - usado) / max(1, len(secs))))   # reparte el espacio libre
     for i, (titulo, ic, col, items) in enumerate(secs):
         icono(slide, icono_circulo(ic, col), LX + 0.3, y - 0.02, 0.4 if ESP[0] >= 0.34 else 0.36)
         texto(slide, lista_x, y + 0.02, lista_w, 0.26, titulo, 12.5, P_INK, "xb")
-        h = alto_lista(items, fs, lista_w)
-        vinetas(slide, lista_x, y + ESP[0], lista_w, h + 0.02, items, fs, "Lista " + titulo.lower())
+        h = alto_lista(items, fs, lista_w, ESP_IZQ)
+        vinetas(slide, lista_x, y + ESP[0], lista_w, h + 0.02, items, fs, "Lista " + titulo.lower(), esp=ESP_IZQ)
         y += ESP[0] + h + ESP[1] + aire
         if i < len(secs) - 1:
             linea_h(slide, lista_x, LX + LW - 0.28, y - (ESP[1] + aire) / 2)
@@ -1481,7 +1485,7 @@ def construir(d, salida_pptx, borrador=False):
             icono(slide, icono_circulo(ic, col), cx, py + 0.11, 0.38)
             ancho_chip = col_w - 0.56
             fs_chip = 9.5
-            while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.36:
+            while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.34:
                 fs_chip -= 0.5
             chip(slide, cx + 0.46, py + 0.1, ancho_chip, 0.4, etq, v, af, fs_chip)
         if hay_agencias:
@@ -1582,7 +1586,7 @@ def exportar_png(pptx_path, png_path):
             png_tmp = os.path.join(tmpdir, "reporte.png")
             app = win32com.client.Dispatch("PowerPoint.Application")
             pres = app.Presentations.Open(copia, ReadOnly=True, WithWindow=False)
-            pres.Slides(1).Export(png_tmp, "PNG", 1920, 1080)
+            pres.Slides(1).Export(png_tmp, "PNG", 3840, 2160)   # 4K: se ve nítido aunque WhatsApp lo comprima
             pres.Close()
             pres = None
             if os.path.exists(png_path):
@@ -1620,7 +1624,7 @@ def exportar_png(pptx_path, png_path):
         pdf = os.path.join(tmp, os.path.splitext(os.path.basename(pptx_path))[0] + ".pdf")
         if shutil.which("pdftoppm"):
             base = os.path.join(tmp, "img")
-            subprocess.run(["pdftoppm", "-png", "-r", "144", "-singlefile", pdf, base], check=True)
+            subprocess.run(["pdftoppm", "-png", "-r", "288", "-singlefile", pdf, base], check=True)
             shutil.move(base + ".png", png_path)
         else:
             subprocess.run(cmd + ["--headless", "--convert-to", "png", "--outdir", tmp, pptx_path],
@@ -1704,7 +1708,7 @@ Infraestructura y Colaboradores, con el objetivo de mantener visibilidad sobre c
     return asunto, cuerpo
 
 
-def imagen_para_correo_b64(png_path, ancho=1600):
+def imagen_para_correo_b64(png_path, ancho=1920):
     """Versión liviana del PNG para incrustar en el cuerpo del correo (JPEG nítido, ~200 KB)."""
     import base64
     with Image.open(png_path) as im:

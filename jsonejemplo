@@ -1,1 +1,0 @@
-   coalesce(body('Parse_JSON')?['ruta_pptx_onedrive'], concat(first(split(triggerBody()?['Path'], '_para_envio')), body('Parse_JSON')?['archivo_pptx']))

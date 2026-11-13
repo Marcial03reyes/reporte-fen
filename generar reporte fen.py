@@ -52,8 +52,9 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-12d (Observatorio + OneDrive)"
+VERSION = "2026-11-13 (letra y títulos)"
 
+FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 FONT = "Nunito"   # tipografía redondeada, afín al logo de Pacífico (incluida en recursos/fuentes)
 
 
@@ -653,9 +654,9 @@ def texto(slide, x, y, w, h, partes, size, color=NAVY, bold=False, align=PP_ALIG
             r = p.add_run()
             r.text = t
             r.font.size = Pt(size)
-            r.font.bold = b
+            r.font.bold = b is True
             r.font.color.rgb = c
-            r.font.name = FONT
+            r.font.name = FONT_XB if b == "xb" else FONT
     return tb
 
 
@@ -671,7 +672,7 @@ def vinetas(slide, x, y, w, h, items, size, nombre, esp=3):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = PP_ALIGN.JUSTIFY
         p.space_after = Pt(esp)
-        p.line_spacing = Pt(round(size * 1.2, 1))   # interlineado fijo: igual en PowerPoint y LibreOffice
+        p.line_spacing = Pt(round(size * 1.15, 1))  # interlineado fijo: igual en PowerPoint y LibreOffice
         pPr = p._p.get_or_add_pPr()
         pPr.set("marL", str(Inches(0.13)))
         pPr.set("indent", str(-Inches(0.13)))
@@ -696,7 +697,7 @@ def alto_lista(items, size, ancho_in, esp=3):
     for linea in items:
         etq, txt = separar(linea)
         n = contar_lineas(etq, txt, size, disp)
-        total += n * size * 1.2 + esp
+        total += n * size * 1.15 + esp
     return total / 72.0
 
 
@@ -1145,11 +1146,11 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.12), Inches(mw), Inches(mh))
         # leyenda de intensidad en el mar, abajo a la izquierda del mapa
         ley = [[sw(nv), (INTENSIDAD[nv], False, P_INK)] for nv in ("Rojo", "Naranja", "Amarillo", "")]
-        texto(slide, mx - 0.35, py + ph - 0.80, 1.3, 0.72, ley, 7.5, nombre="Leyenda intensidad")
+        texto(slide, mx - 0.35, py + ph - 0.80, 1.3, 0.72, ley, 8, nombre="Leyenda intensidad")
         mw += 0.35
     lx = px + 0.2
     la = pw - 0.35 - mw - 0.25
-    texto(slide, lx, py + 0.1, la, 0.26, "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11, P_BLUE_DK, True)
+    texto(slide, lx, py + 0.1, la, 0.26, "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11.5, P_BLUE_DK, "xb")
     y = py + 0.38
     for etq, ic, col, valor in impactos:
         v = valor or "Sin afectación reportada."
@@ -1161,7 +1162,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
             etq = "Sedes afectadas" if etq == "Sedes" else "Colaboradores afectados"
         icono(slide, icono_circulo(ic, col), lx, y + 0.02, 0.38)
         ancho_chip = la - 0.48
-        fs_chip = 9.5
+        fs_chip = 10.5
         while fs_chip > 7 and contar_lineas(etq, v, fs_chip, (ancho_chip - 0.3) * 72) * fs_chip * 1.2 / 72 > 0.36:
             fs_chip -= 0.5
         chip(slide, lx + 0.48, y, ancho_chip, 0.38, etq, v, af, fs_chip)
@@ -1174,7 +1175,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
                 marca = ("✓\u00a0", True, OK_FG) if nv == "ok" else ("⚠\u00a0", True, COLORES_NIVEL[nv][1])
                 nom = ciudad + (f" ({cant})" if cant > 1 else "")
                 texto(slide, lx + 0.62 + (k_ % por_fila) * cw, y - 0.04 + (k_ // por_fila) * 0.21, cw, 0.2,
-                      [[marca, (nom, nv != "ok", P_INK if nv == "ok" else COLORES_NIVEL[nv][1])]], 8.5,
+                      [[marca, (nom, nv != "ok", P_INK if nv == "ok" else COLORES_NIVEL[nv][1])]], 9.5,
                       nombre="Sede " + ciudad)
             y += -(-len(sedes_l) // por_fila) * 0.21 + 0.06
     if d.get("colab_casos"):
@@ -1185,7 +1186,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         texto(slide, lx + 0.48, y - 0.04, la - 0.48, 0.34, partes, 7, nombre="Colaboradores afectados")
         y += 0.34
     texto(slide, lx, py + ph - 0.22, la, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
-          6.5, P_GREY, False, nombre="Fuente mapa")
+          7, P_GREY, False, nombre="Fuente mapa")
 
 
 # ================================================================ 5. Construir la diapositiva
@@ -1294,14 +1295,14 @@ def construir(d, salida_pptx, borrador=False):
 
     # ---- Cabecera con degradado ondulado
     slide.shapes.add_picture(fondo_cabecera(), 0, 0, Inches(13.333), Inches(1.72))
-    texto(slide, 0.6, 0.24, 7.5, 0.62, "REPORTE FEN " + d["numero"], 32, WHITE, True, nombre="Titulo")
-    texto(slide, 0.62, 0.86, 7.0, 0.3, "Reporte fenomenológico nacional", 14, WHITE, nombre="Subtitulo")
+    texto(slide, 0.6, 0.24, 7.5, 0.62, "REPORTE FEN " + d["numero"], 32, WHITE, "xb", nombre="Titulo")
+    texto(slide, 0.62, 0.86, 7.0, 0.3, "Reporte fenomenológico nacional", 14, WHITE, True, nombre="Subtitulo")
     if recurso("logo_continuidad.png"):
         imagen_ajustada(slide, recurso("logo_continuidad.png"), 7.55, 0.30, alto=0.62)
     fb = caja(slide, 10.05, 0.24, 2.78, 0.9, WHITE, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Caja fecha")
     fb.adjustments[0] = 0.18
     texto(slide, 10.3, 0.40, 2.4, 0.2, "FECHA", 9, P_GREY, True)
-    texto(slide, 10.3, 0.62, 2.4, 0.36, d["fecha"], 18, P_BLUE_DK, True)
+    texto(slide, 10.3, 0.62, 2.4, 0.36, d["fecha"], 18, P_BLUE_DK, "xb")
     if borrador:
         b = caja(slide, 4.6, 0.36, 2.7, 0.42, BAD_FG, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Marca borrador")
         b.adjustments[0] = 0.5
@@ -1362,7 +1363,7 @@ def construir(d, salida_pptx, borrador=False):
         rw = RW - 0.56
         y1d = ry1 - alto_bloque_radar(RW)           # el bloque del Radar ocupa la parte baja de la columna
         need = lambda f: sum(alto_tit(t, rw) + alto_lista(it, f, rw, ESP_DER) + 0.22 for t, _, it in bloques)
-        fs = 12.0
+        fs = 12.5
         while fs > MIN_FS and need(fs) > y1d - ry0:
             fs -= 0.5
         return fs, need(fs) <= y1d - ry0, max(0.0, need(fs) - (y1d - ry0))
@@ -1423,7 +1424,7 @@ def construir(d, salida_pptx, borrador=False):
         h = caja(slide, x, TOP, w, HEAD, P_TINT, None, MSO_SHAPE.ROUND_2_SAME_RECTANGLE, nom + " encabezado")
         h.adjustments[0] = 0.32
         h.adjustments[1] = 0.0
-        texto(slide, x + 0.3, TOP, w - 0.5, HEAD, titulo, 16, color, True, anchor=MSO_ANCHOR.MIDDLE)
+        texto(slide, x + 0.3, TOP, w - 0.5, HEAD, titulo, 16, color, "xb", anchor=MSO_ANCHOR.MIDDLE)
 
     # ---- Columna izquierda: estatus del día
     lista_x, lista_w = LX + 0.86, LW - 0.86 - 0.28
@@ -1432,7 +1433,7 @@ def construir(d, salida_pptx, borrador=False):
     aire = min(0.28, max(0.0, (Y1_COMPACTO - y0 - usado) / max(1, len(secs))))   # reparte el espacio libre
     for i, (titulo, ic, col, items) in enumerate(secs):
         icono(slide, icono_circulo(ic, col), LX + 0.3, y - 0.02, 0.4 if ESP[0] >= 0.34 else 0.36)
-        texto(slide, lista_x, y + 0.02, lista_w, 0.26, titulo, 12.5, P_INK, True)
+        texto(slide, lista_x, y + 0.02, lista_w, 0.26, titulo, 12.5, P_INK, "xb")
         h = alto_lista(items, fs, lista_w)
         vinetas(slide, lista_x, y + ESP[0], lista_w, h + 0.02, items, fs, "Lista " + titulo.lower())
         y += ESP[0] + h + ESP[1] + aire
@@ -1524,7 +1525,7 @@ def construir(d, salida_pptx, borrador=False):
     y = ry0
     for i, (t, col, items) in enumerate(bloques):
         ht = alto_tit(t, rl_w)
-        texto(slide, rl_x, y, rl_w, ht, t.upper(), 13, col, True)
+        texto(slide, rl_x, y, rl_w, ht, t.upper(), 13, col, "xb")
         h = alto_lista(items, fs2, rl_w, ESP_DER)
         vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2,
                 t.capitalize() if i >= len(bloques_base) else f"Pronostico {i + 1}", esp=ESP_DER)
@@ -2005,7 +2006,8 @@ def instalar_fuentes():
     destino = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Windows", "Fonts")
     os.makedirs(destino, exist_ok=True)
     nuevas = 0
-    for archivo, nombre in (("Nunito-Regular.ttf", "Nunito (TrueType)"), ("Nunito-Bold.ttf", "Nunito Bold (TrueType)")):
+    for archivo, nombre in (("Nunito-Regular.ttf", "Nunito (TrueType)"), ("Nunito-Bold.ttf", "Nunito Bold (TrueType)"),
+                            ("Nunito-ExtraBold.ttf", "Nunito ExtraBold (TrueType)")):
         origen, final = os.path.join(carpeta, archivo), os.path.join(destino, archivo)
         if not os.path.exists(origen) or os.path.exists(final):
             continue

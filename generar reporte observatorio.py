@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-16 (Observatorio)"
+VERSION_OBS = "2026-11-16b (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -115,6 +115,13 @@ def recortar(texto, maximo=260):
     return t[:1].upper() + t[1:]
 
 
+def quitar_previsiones(texto):
+    """Dentro de un hecho, quita las oraciones de pronóstico ('Se prevé que las lluvias continúen…')."""
+    frases = re.split(r"(?<=[.!])\s+", texto)
+    quedan = [f for f in frases if not re.match(r"^(se prev[eé]n?|se espera|se esperan|podr[ií]a)", f.strip(), re.I)]
+    return " ".join(quedan) if quedan else texto
+
+
 def etiqueta(texto, deps):
     """Lugar del hecho: el que encabeza el texto ('Piura | …', 'Moquegua: …') o los departamentos nombrados."""
     m = re.match(r"^\s*([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)\s*[:|]\s*(.+)$", texto)
@@ -155,7 +162,9 @@ def hechos_oficiales(snap, desde, hasta):
             descartes["no es un hecho"] += 1
             continue
         lugar, cuerpo = etiqueta(texto, x.get("departamentos") or [])
-        secciones[seccion].append({"t": t, "cuenta": CUENTAS_OFICIALES[cuenta], "lugar": lugar,
+        cuerpo = quitar_previsiones(cuerpo)
+        deps = {base._sin_tildes(x_) for x_ in (x.get("departamentos") or [])} or {base._sin_tildes(lugar)}
+        secciones[seccion].append({"t": t, "cuenta": CUENTAS_OFICIALES[cuenta], "lugar": lugar, "deps": deps,
                                    "texto": recortar(cuerpo)})
     # Una quebrada o huaico que corta una vía también va (corto) a Vías restringidas
     for k in ("rios", "huaicos"):
@@ -167,15 +176,20 @@ def hechos_oficiales(snap, desde, hasta):
                           "cerrad": "cerrado"}[m.group(1).lower()]
                 secciones["vias"].append({**h, "texto": f"Tránsito {estado} en la {m.group(2).strip()} "
                                                         f"({'por quebradas' if k == 'rios' else 'por huaico'})."})
-    # Misma cuenta, mismo lugar y misma sección: queda la publicación más reciente (p. ej. acumulados actualizados)
+    # Lluvias: SENAMHI publica varios balances al día; queda el más reciente de cada departamento
+    # (una publicación más antigua se descarta si todos sus departamentos ya salen en una más nueva).
+    # Ríos, huaicos y vías: cada publicación es un hecho distinto; solo se quitan textos repetidos.
     for k, lista in secciones.items():
         lista.sort(key=lambda h: h["t"], reverse=True)
-        vistos, unicos = set(), []
+        cubiertos, textos, unicos = set(), set(), []
         for h in lista:
-            clave = (h["cuenta"], h["lugar"].lower())
-            if clave in vistos:
+            if k == "lluvias" and h["deps"] <= cubiertos:
                 continue
-            vistos.add(clave)
+            clave_txt = re.sub(r"\W+", "", h["texto"].lower())[:120]
+            if clave_txt in textos:
+                continue
+            cubiertos |= h["deps"]
+            textos.add(clave_txt)
             unicos.append(h)
         secciones[k] = unicos[:MAX_POR_SECCION]
     return secciones, descartes
@@ -188,13 +202,31 @@ def pronostico(snap, dia, desde):
     posts = [x for x in (snap.get("datasets") or {}).get("senales_x") or []
              if (x.get("cuenta") or "").lower() == "@senamhiperu" and re.search(r"#pron[oó]stico", x.get("resumen") or "", re.I)
              and (a_lima(x.get("publicado")) or desde) >= desde - timedelta(hours=12)]
+    por_region = {}
+
+    def region_de(frase):
+        f = frase.lower()
+        return "Sierra" if "sierra" in f else "Selva" if "selva" in f else "Costa"
+
+    def limpia(frase):
+        f = re.sub(r"^(asimismo|adem[aá]s|por otro lado),?\s*", "", frase.strip(), flags=re.I)
+        f = re.sub(r"^el senamhi informa que,?\s*", "", f, flags=re.I)
+        f = re.sub(r"^desde el \w+ \d+ hasta el \w+ \d+ de \w+,?\s*", "", f, flags=re.I)
+        return f[:1].upper() + f[1:]
+
     if posts:
         ult = max(posts, key=lambda x: x.get("publicado") or "")
         txt = limpiar_post(ult["resumen"])
-        for reg in ("Costa", "Sierra", "Selva"):
-            m = re.search(reg + r"\s*:\s*(.+?)(?=\s*(?:Costa|Sierra|Selva)\s*:|$)", txt, re.I)
-            if m:
-                items.append(f"{reg}: " + recortar(m.group(1).strip(), 160))
+        etiquetas = list(re.finditer(r"\b(Costa|Sierra|Selva)\s*:\s*(.+?)(?=\s*\b(?:Costa|Sierra|Selva)\s*:|$)", txt, re.I))
+        if etiquetas:
+            for m in etiquetas:
+                por_region.setdefault(m.group(1).capitalize(), recortar(m.group(2).strip(), 160))
+        else:                                   # texto libre: cada oración va a su región
+            txt = re.sub(r"^.*?\|\s*", "", txt)
+            for f in re.split(r"(?<=\.)\s+", txt):
+                if len(f) > 20:
+                    r_ = region_de(f)
+                    por_region[r_] = (por_region.get(r_, "") + " " + recortar(limpia(f), 160)).strip()
     filas = [r for r in (snap.get("sources") or {}).get("senamhi", {}).get("rows", [])
              if "lluvias" in (r.get("eventIds") or []) and r.get("jornada") == dia]
     if filas:
@@ -202,12 +234,15 @@ def pronostico(snap, dia, desde):
         n = filas[0].get("numero_aviso")
         cuerpo = ev.split(". ", 1)[1] if ". " in ev else ev
         cuerpo = re.sub(r"^el \w+ \d+ de \w+,?\s*", "", cuerpo, flags=re.I)
-        if not items:
-            desc = filas[0].get("descripcion_oficial") or ""
-            for reg in ("costa", "sierra", "selva"):
-                frases = [f for f in re.split(r"(?<=\.)\s+", desc) if reg in f.lower()]
-                if frases:
-                    items.append(f"{reg.capitalize()}: " + recortar(frases[0], 170))
+        desc = filas[0].get("descripcion_oficial") or ""
+        for f in re.split(r"(?<=\.)\s+", desc):           # lo que el post no cubre, del aviso oficial
+            reg = region_de(f)
+            if reg not in por_region and re.search(reg, f, re.I):
+                por_region[reg] = recortar(limpia(f), 170)
+    for reg in ("Costa", "Sierra", "Selva"):
+        if reg in por_region:
+            items.append(f"{reg}: {por_region[reg]}")
+    if filas:
         items.append(f"Acumulados previstos (aviso SENAMHI {n}): " + recortar(cuerpo, 170))
     otros = []
     for no in (snap.get("sources") or {}).get("senamhi", {}).get("notices", []):

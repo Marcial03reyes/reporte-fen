@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16 (huaicos y lista de avisos)"
+VERSION = "2026-11-16b (síntesis de líneas y fuente destacada)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -399,6 +399,84 @@ def _leer_whatsapp(lineas, d):
     return d
 
 
+def _unir_y(partes):
+    return partes[0] if len(partes) == 1 else ", ".join(partes[:-1]) + " y " + partes[-1]
+
+
+def _fusionar(textos):
+    """Junta varias líneas del mismo lugar que repiten el mismo comienzo. Ej.:
+    'Tránsito interrumpido ... TU-105, sector Cañaveral, km 59 al 60.' (x3)
+    -> 'Tránsito interrumpido ... TU-105 en los sectores Cañaveral (km 59 al 60), Corralitos (...) y Panales (...).'
+    Devuelve None si no tienen un comienzo común claro (no se fuerza la unión)."""
+    pref = os.path.commonprefix(textos)
+    corte = pref.rfind(",")
+    if corte < 20:
+        # Mismo comienzo de al menos 2 palabras: "Activación de las quebradas X…" + "Activación de la quebrada Y…"
+        # -> "Activación de las quebradas X…; y de la quebrada Y…"
+        pal = [t.split() for t in textos]
+        n = 0
+        while all(len(p_) > n for p_ in pal) and len({p_[n].lower() for p_ in pal}) == 1:
+            n += 1
+        while n and pal[0][n - 1].lower() in ("la", "las", "el", "los", "un", "una"):
+            n -= 1                                   # el artículo va con lo que sigue ("de la quebrada")
+        if n >= 2:
+            base, ult = " ".join(pal[0][:n]), pal[0][n - 1]
+            restos = [" ".join(p_[n:]).rstrip(".") for p_ in pal]
+            enlace = ult + " " if ult.lower() in ("de", "del", "en", "a", "por", "con") else ""
+            return base + " " + restos[0] + "".join(f"; y {enlace}{r}" for r in restos[1:]) + "."
+        # Sin comienzo común: mismas oraciones bajo una sola etiqueta
+        return " ".join(t if t.endswith(".") else t + "." for t in textos)
+    pref = pref[:corte].strip()
+    restos = [t[corte + 1:].strip().rstrip(".").strip() for t in textos]
+    if any(not r for r in restos):
+        return None
+    sec = [re.match(r"sectore?s?\s+(.+?),\s*(km\b.+)$", r, re.I) for r in restos]
+    if all(sec):
+        return f"{pref} en los sectores " + _unir_y([f"{m.group(1)} ({m.group(2)})" for m in sec]) + "."
+    sec = [re.match(r"sector\s+(.+)$", r, re.I) for r in restos]
+    if all(sec):
+        return f"{pref} en los sectores " + _unir_y([m.group(1) for m in sec]) + "."
+    return f"{pref}: " + "; ".join(restos) + "."
+
+
+def sintetizar(d):
+    """En cada sección del estatus, las líneas del mismo lugar con el mismo comienzo se juntan en una sola."""
+    for campo in ("lluvias", "vias", "rios", "huaicos"):
+        items, grupos, orden = d.get(campo) or [], {}, []
+        for it in items:
+            etq, sep, txt = it.partition(":")
+            clave = etq.strip().lower() if sep and len(etq) <= 40 else None
+            if clave not in grupos:
+                grupos[clave] = []
+                orden.append(clave)
+            grupos[clave].append((etq.strip(), txt.strip()) if clave else (None, it))
+        nuevos = []
+        for clave in orden:
+            g = grupos[clave]
+            if clave is None:
+                nuevos += [t for _, t in g]
+                continue
+            junto = _fusionar([t for _, t in g]) if len(g) > 1 else None
+            if junto:
+                nuevos.append(f"{g[0][0]}: {junto}")
+            else:
+                nuevos += [f"{e}: {t}" for e, t in g]
+        if len(nuevos) < len(items):
+            print(f"  Sinteticé {campo}: {len(items)} líneas -> {len(nuevos)} (mismo lugar y mismo comienzo).")
+        d[campo] = nuevos
+    # Mismo evento en dos secciones (p. ej. un huaico que también corta una vía): solo se avisa
+    def claves(t):
+        return set(re.findall(r"km\s*\d+", t.lower())) | {w for w in re.findall(r"\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{5,}\b", t)}
+    for h in d.get("huaicos") or []:
+        eh, _, th = h.partition(":")
+        for v in d.get("vias") or []:
+            ev, _, tv = v.partition(":")
+            comun = (claves(th) & claves(tv)) - {"Tránsito", "Afectaciones", "Deslizamiento", "Dificultades"}
+            if eh.strip().lower() == ev.strip().lower() and comun:
+                print(f"  Ojo: «{eh.strip()}» aparece en Huaicos y en Vías por el mismo hecho ({', '.join(sorted(comun))}).")
+    return d
+
+
 def leer_datos(ruta):
     with open(ruta, encoding="utf-8-sig") as f:
         lineas = f.read().splitlines()
@@ -407,11 +485,11 @@ def leer_datos(ruta):
     clima = {"LLUVIAS REPORTADAS", "VIAS RESTRINGIDAS", "VÍAS RESTRINGIDAS", "RIOS Y OTRAS AFECTACIONES",
              "RÍOS Y OTRAS AFECTACIONES", "PRONOSTICO 1", "PRONÓSTICO 1"}
     if any(s in clima for s in secciones if s):
-        return resolver_colaboradores(resolver_sedes(_leer_estructurado(lineas, d)))
+        return sintetizar(resolver_colaboradores(resolver_sedes(_leer_estructurado(lineas, d))))
     # Mensaje de WhatsApp arriba + datos de Pacífico entre corchetes abajo
     corte = next((i for i, s in enumerate(secciones) if s), len(lineas))
     _leer_whatsapp(lineas[:corte], d)
-    d = resolver_colaboradores(resolver_sedes(_leer_estructurado(lineas[corte:], d)))
+    d = sintetizar(resolver_colaboradores(resolver_sedes(_leer_estructurado(lineas[corte:], d))))
     _avisar_colaboradores_sueltos(lineas, d)
     return d
 
@@ -1081,7 +1159,7 @@ def dibujar_radar(slide, rz, estilo, x, y, w, h, fs=8.5):
                                                   f"{rz['enfen']['proximo']}", False, P_INK)]
             texto(slide, x + 0.15, cy, w - 0.3, 0.2, [leyenda], 8, nombre="Radar ENFEN")
     texto(slide, x + 0.15, y + h - 0.21, w - 0.3, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
-          7, P_GREY, False, nombre="Radar fuente")
+          8, P_BLUE_DK, True, nombre="Radar fuente")
 
 
 
@@ -1245,7 +1323,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         texto(slide, lx + 0.48, y - 0.04, la - 0.48, 0.34, partes, 7, nombre="Colaboradores afectados")
         y += 0.34
     texto(slide, lx, py + ph - 0.22, la, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
-          7, P_GREY, False, nombre="Fuente mapa")
+          8, P_BLUE_DK, True, nombre="Fuente mapa")
 
 
 # ================================================================ 5. Construir la diapositiva

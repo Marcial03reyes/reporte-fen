@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16e (mapa: gravedad + causa)"
+VERSION = "2026-11-16f (mapa FEN: gotas, cerros y sol)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1183,7 +1183,7 @@ COORD_SEDE = {  # lat, lon aproximadas de la ciudad
 # hacia dónde va la etiqueta de cada ciudad (para que no se encimen)
 LADO_ETIQUETA = {"Huancayo": "der", "Cusco": "der", "Arequipa": "der", "Iquitos": "der", "Tarapoto": "der",
                  "Puno": "der", "Juliaca": "der", "Pucallpa": "der", "Ayacucho": "der", "Huánuco": "der"}
-FILL_NIVEL = {"Rojo": (214, 48, 79), "Naranja": (240, 140, 50), "Amarillo": (246, 210, 80), "": (226, 232, 240)}
+FILL_NIVEL = {"Rojo": (214, 48, 79), "Naranja": (240, 140, 50), "Amarillo": (250, 228, 140), "": (226, 232, 240)}
 INTENSIDAD = {"Rojo": "Extremo", "Naranja": "Alto", "Amarillo": "Moderado", "": "Sin información"}
 PIN_NIVEL = {"ok": (30, 122, 69), "leve": (214, 128, 0), "afectado": (196, 18, 63)}
 
@@ -1192,30 +1192,46 @@ def ruta_geojson():
     return recurso("peru_departamentos.geojson")
 
 
-COLOR_CAUSA = {"lluvias": (7, 120, 190), "quebradas": (125, 80, 40), "calor": (225, 85, 25)}
+COLOR_CAUSA = {"lluvias": (20, 120, 200), "quebradas": (125, 80, 40), "calor": (247, 160, 20)}
 ETIQUETA_CAUSA = {"lluvias": "Lluvias", "quebradas": "Quebradas", "calor": "Calor"}
 
 
 def dibujar_causa(dr, tipo, cx, cy, s):
-    """Insignia redonda con el símbolo de la causa (gota, cerro con huaico o sol)."""
+    """Símbolo de la causa, sin fondo y con borde blanco para que se lea sobre cualquier color:
+    lluvias = tres gotas, quebradas = cerro con piedras, calor = sol."""
+    import math as _m
     c = COLOR_CAUSA[tipo] + (255,)
+    b = (255, 255, 255, 255)
     r = s / 2
-    dr.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=c, width=max(2, int(s * .08)))
+    borde = max(2, int(s * .07))
+
+    def gota(x, y, h):                     # gota: triángulo arriba + círculo abajo
+        w = h * .42
+        for col, e in ((b, borde), (c, 0)):
+            dr.polygon([(x, y - h * .55 - e), (x - w - e * .7, y + h * .05), (x + w + e * .7, y + h * .05)], fill=col)
+            dr.ellipse((x - w - e, y - w * .55 - e, x + w + e, y + w * 1.45 + e), fill=col)
+
     if tipo == "lluvias":
-        dr.polygon([(cx, cy - r * .62), (cx - r * .38, cy + r * .05), (cx + r * .38, cy + r * .05)], fill=c)
-        dr.ellipse((cx - r * .40, cy - r * .22, cx + r * .40, cy + r * .58), fill=c)
+        gota(cx - r * .42, cy - r * .18, r * .78)
+        gota(cx + r * .42, cy - r * .18, r * .78)
+        gota(cx, cy + r * .38, r * .78)
     elif tipo == "quebradas":
-        dr.polygon([(cx - r * .62, cy + r * .45), (cx - r * .12, cy - r * .55), (cx + r * .18, cy - r * .02),
-                    (cx + r * .32, cy - r * .25), (cx + r * .66, cy + r * .45)], fill=c)
-        dr.ellipse((cx + r * .02, cy + r * .12, cx + r * .26, cy + r * .36), fill=(255, 255, 255, 255))
-    else:
-        rs = r * .30
-        dr.ellipse((cx - rs, cy - rs, cx + rs, cy + rs), fill=c)
-        import math as _m
-        for i in range(8):
-            a = i * _m.pi / 4
-            dr.line((cx + _m.cos(a) * r * .45, cy + _m.sin(a) * r * .45, cx + _m.cos(a) * r * .68,
-                     cy + _m.sin(a) * r * .68), fill=c, width=max(2, int(s * .07)))
+        pts = [(cx - r * .9, cy + r * .6), (cx - r * .2, cy - r * .7), (cx + r * .2, cy - r * .1),
+               (cx + r * .45, cy - r * .4), (cx + r * .95, cy + r * .6)]
+        dr.polygon(pts, fill=c, outline=b, width=borde)
+        dr.ellipse((cx + r * .05, cy + r * .15, cx + r * .35, cy + r * .45), fill=b)
+    else:                                  # sol: disco y rayos triangulares, amarillo-naranja
+        sol = (247, 160, 20, 255)
+        n, r_in, r_out = 10, r * .52, r * .98
+        for i_ in range(n):
+            a = 2 * _m.pi * i_ / n
+            a1, a2 = a - _m.pi / n * .55, a + _m.pi / n * .55
+            tri = [(cx + _m.cos(a1) * r_in, cy + _m.sin(a1) * r_in), (cx + _m.cos(a) * r_out, cy + _m.sin(a) * r_out),
+                   (cx + _m.cos(a2) * r_in, cy + _m.sin(a2) * r_in)]
+            dr.polygon(tri, fill=sol, outline=b)
+        rd = r * .5
+        dr.ellipse((cx - rd - borde, cy - rd - borde, cx + rd + borde, cy + rd + borde), fill=b)
+        dr.ellipse((cx - rd, cy - rd, cx + rd, cy + rd), fill=sol)
 
 
 def icono_causa(tipo, lado=96):
@@ -1359,14 +1375,27 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
     # Color = gravedad: el nivel oficial más alto de cualquier aviso del día (lluvias, quebradas o calor).
     # Símbolos = por qué: las causas en nivel naranja o rojo (o la del nivel máximo si solo hay amarillo).
     capas = {"lluvias": rz["lluvias"], "quebradas": rz["quebradas"], "calor": rz.get("calor") or {}}
+    modo = (os.environ.get("FEN_MAPA") or d.get("mapa_modo") or "fen").lower()
     niveles, causas = {}, {}
-    for tipo, cap in capas.items():
-        for dep, nv in cap.items():
-            if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
-                niveles[dep] = nv
-    for dep, nv_max in niveles.items():
-        umbral = min(NIVEL_ORDEN["Naranja"], NIVEL_ORDEN[nv_max])
-        causas[dep] = [t for t, cap in capas.items() if NIVEL_ORDEN.get(cap.get(dep), 0) >= umbral]
+    if modo.startswith("grav"):
+        # Opción "gravedad": color = nivel más alto de cualquier aviso; un solo símbolo, el de la causa del color
+        for tipo, cap in capas.items():
+            for dep, nv in cap.items():
+                if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
+                    niveles[dep] = nv
+        for dep, nv_max in niveles.items():
+            causas[dep] = [next(t for t in ("quebradas", "lluvias", "calor")
+                                if capas[t].get(dep) and NIVEL_ORDEN[capas[t][dep]] == NIVEL_ORDEN[nv_max])]
+    else:
+        # Opción "fen": color = lluvias y quebradas; símbolo de quebradas donde hay aviso
+        # y un sol solo donde el calor está en Extremo (rojo)
+        for tipo in ("lluvias", "quebradas"):
+            for dep, nv in capas[tipo].items():
+                if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
+                    niveles[dep] = nv
+        for dep in set(capas["lluvias"]) | set(capas["quebradas"]) | {k_ for k_, v in capas["calor"].items() if v == "Rojo"}:
+            causas[dep] = [t for t in ("lluvias", "quebradas", "calor") if
+                           (t != "calor" and capas[t].get(dep)) or (t == "calor" and capas[t].get(dep) == "Rojo")]
     MAPA_CON_CALOR = False      # sin rayas: el calor entra al color y se marca con su símbolo
     res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, causas=causas)
     mh = ph - 0.24
@@ -1386,7 +1415,8 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
             yl = py + ph - 0.08 - alto_ley - 0.17 * len(tipos) - 0.04
             for i_, t in enumerate(tipos):
                 icono(slide, icono_causa(t), mx - 0.55, yl + i_ * 0.17 + 0.015, 0.14)
-                texto(slide, mx - 0.37, yl + i_ * 0.17, 1.3, 0.17, ETIQUETA_CAUSA[t], 8, P_INK, nombre="Leyenda causa")
+                etq_c = "Calor extremo" if (t == "calor" and not modo.startswith("grav")) else ETIQUETA_CAUSA[t]
+                texto(slide, mx - 0.37, yl + i_ * 0.17, 1.3, 0.17, etq_c, 8, P_INK, nombre="Leyenda causa")
         if MAPA_CON_CALOR and rz.get("calor"):
             ley.append([("▨\u00a0", True, RGBColor(*[round(c_ * 0.72) for c_ in FILL_NIVEL["Rojo"]])),
                         ("Rayas: aviso de calor", False, P_INK)])
@@ -2097,7 +2127,7 @@ def leer_configuracion(carpeta_script):
         CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
         MODO_CORREO: automate | outlook | ninguno
     Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
-    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa"}
+    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "fen"}
     ruta = os.path.join(carpeta_script, "configuracion.txt")
     if not os.path.exists(ruta):
         return conf
@@ -2116,6 +2146,8 @@ def leer_configuracion(carpeta_script):
                 conf["modo"] = v.lower()
             elif k == "RADAR" and v:
                 conf["radar"] = v.lower()
+            elif k == "MAPA" and v:
+                conf["mapa"] = v.lower()
             elif k == "RADAR_ESTILO" and v:
                 conf["radar_estilo"] = v.lower()
     return conf
@@ -2375,6 +2407,7 @@ def main():
             print("  El reporte sale sin el mapa (con la fila de agencias de siempre).")
         else:
             d["radar"] = resumir_radar(datos_radar, d["fecha"], [n for n, _ in d["agencias"]] or None)
+            d["mapa_modo"] = config.get("mapa", "fen")
             d["radar_estilo"] = ("mapa" if config["radar_estilo"].startswith("mapa") else
                                  "sedes" if config["radar_estilo"].startswith("sede") else "avisos")
             rz = d["radar"]

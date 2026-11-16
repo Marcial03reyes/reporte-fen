@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-16b (Observatorio)"
+VERSION_OBS = "2026-11-16c (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -244,10 +244,37 @@ def pronostico(snap, dia, desde):
             items.append(f"{reg}: {por_region[reg]}")
     if filas:
         items.append(f"Acumulados previstos (aviso SENAMHI {n}): " + recortar(cuerpo, 170))
+    # Departamentos por nivel oficial, por peligro (como "Pronóstico: nivel … hoy" de la página)
+    filas_dia = [r for r in (snap.get("sources") or {}).get("senamhi", {}).get("rows", [])
+                 if r.get("jornada") == dia and not r.get("solo_contexto") and r.get("nivel") in base.NIVEL_ORDEN]
+    for ev, nombre in (("lluvias", "Lluvias"), ("calor", "Calor")):
+        dep, avisos = {}, set()
+        for r in filas_dia:
+            if ev in (r.get("eventIds") or []):
+                avisos.add(r.get("numero_aviso"))
+                for d_ in r.get("departamentos") or []:
+                    if base.NIVEL_ORDEN[r["nivel"]] > base.NIVEL_ORDEN.get(dep.get(d_), 0):
+                        dep[d_] = r["nivel"]
+        if not dep:
+            continue
+        partes = []
+        for nv in ("Rojo", "Naranja", "Amarillo"):
+            lista = sorted((d_ for d_, v in dep.items() if v == nv), key=base._sin_tildes)
+            if lista:
+                partes.append(f"{base.INTENSIDAD[nv].lower()} ({nv.lower()}) en " + base._unir_y(lista))
+        num = " y ".join(str(a_) for a_ in sorted(a_ for a_ in avisos if a_))
+        items.append(f"{nombre}: nivel " + "; ".join(partes) + f" (aviso{'s' if len(avisos) > 1 else ''} SENAMHI {num}).")
+    qn = (snap.get("sources") or {}).get("indeci", {}).get("quebradaNotice") or {}
+    fin_q = a_lima(qn.get("fin"))
+    if qn.get("number") and fin_q and fin_q.strftime("%Y-%m-%d") >= dia:
+        hora = f"{fin_q:%H} h" if fin_q.minute == 0 else f"{fin_q:%H}.{fin_q:%M} h"
+        items.append(f"Quebradas: activación de quebradas en nivel {(qn.get('level') or '').lower()} "
+                     f"(aviso {qn['number']}), vigente hasta las {hora} del {fin_q:%d/%m}.")
     otros = []
     for no in (snap.get("sources") or {}).get("senamhi", {}).get("notices", []):
         ini, fin = a_lima(no.get("start")), a_lima(no.get("end"))
-        if "lluvias" in (no.get("eventIds") or []) or not ini or not fin:
+        ev_ = no.get("eventIds") or []
+        if "lluvias" in ev_ or "calor" in ev_ or not ini or not fin:
             continue
         if ini.strftime("%Y-%m-%d") <= dia <= fin.strftime("%Y-%m-%d"):
             tit = re.sub(r"\s*\(.*?\)", "", no.get("title") or "").strip().capitalize()
@@ -258,7 +285,7 @@ def pronostico(snap, dia, desde):
         if ini and fin and ini.strftime("%Y-%m-%d") <= dia <= fin.strftime("%Y-%m-%d"):
             otros.append(f"Oleaje anómalo en el litoral (DHN {no.get('number')}, hasta {fin:%d/%m})")
     if otros:
-        items.append("Otros avisos vigentes: " + "; ".join(otros) + ".")
+        items.append("Otros avisos: " + "; ".join(otros) + ".")
     return items
 
 

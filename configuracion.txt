@@ -22,4 +22,4 @@ RADAR_ESTILO: mapa
 # Mapa del Perú:
 #   fen      -> color = avisos de lluvias y quebradas; gotas, cerros y un sol donde el calor es extremo
 #   gravedad -> color = nivel más alto de cualquier aviso (incluye calor); un símbolo con la causa
-MAPA: fen
+MAPA: gravedad

@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16f (mapa FEN: gotas, cerros y sol)"
+VERSION = "2026-11-16g (mapa de gravedad, íconos sutiles)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1192,7 +1192,7 @@ def ruta_geojson():
     return recurso("peru_departamentos.geojson")
 
 
-COLOR_CAUSA = {"lluvias": (20, 120, 200), "quebradas": (125, 80, 40), "calor": (247, 160, 20)}
+COLOR_CAUSA = {"lluvias": (45, 125, 190), "quebradas": (120, 90, 60), "calor": (240, 170, 50)}
 ETIQUETA_CAUSA = {"lluvias": "Lluvias", "quebradas": "Quebradas", "calor": "Calor"}
 
 
@@ -1203,7 +1203,7 @@ def dibujar_causa(dr, tipo, cx, cy, s):
     c = COLOR_CAUSA[tipo] + (255,)
     b = (255, 255, 255, 255)
     r = s / 2
-    borde = max(2, int(s * .07))
+    borde = max(2, int(s * .05))
 
     def gota(x, y, h):                     # gota: triángulo arriba + círculo abajo
         w = h * .42
@@ -1221,7 +1221,7 @@ def dibujar_causa(dr, tipo, cx, cy, s):
         dr.polygon(pts, fill=c, outline=b, width=borde)
         dr.ellipse((cx + r * .05, cy + r * .15, cx + r * .35, cy + r * .45), fill=b)
     else:                                  # sol: disco y rayos triangulares, amarillo-naranja
-        sol = (247, 160, 20, 255)
+        sol = COLOR_CAUSA["calor"] + (255,)
         n, r_in, r_out = 10, r * .52, r * .98
         for i_ in range(n):
             a = 2 * _m.pi * i_ / n
@@ -1302,7 +1302,9 @@ def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None, causas=None):
     if causas:                                         # por qué: símbolos en el punto más interior del departamento
         from PIL import ImageFilter
         normz = {_sin_tildes(k_): v for k_, v in causas.items()}
-        s_ic = int(alto_px * 0.068)
+        s_ic = int(alto_px * 0.056)                    # algo más chicos y semitransparentes: que no dominen el mapa
+        capa_ic = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        dr_ic = ImageDraw.Draw(capa_ic)
         red = 8
         for feat in geo["features"]:
             nombre = _sin_tildes(feat["properties"].get("NOMBDEP", ""))
@@ -1328,7 +1330,11 @@ def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None, causas=None):
             paso_ic = s_ic * 1.02
             x0 = cx - paso_ic * (len(lista) - 1) / 2
             for i_, tipo in enumerate(lista):
-                dibujar_causa(dr, tipo, x0 + i_ * paso_ic, cy, s_ic)
+                dibujar_causa(dr_ic, tipo, x0 + i_ * paso_ic, cy, s_ic)
+        alfa = capa_ic.getchannel("A").point(lambda v: int(v * 0.78))
+        capa_ic.putalpha(alfa)
+        img.alpha_composite(capa_ic)
+        dr = ImageDraw.Draw(img)
     fuente = ImageFont.truetype(recurso(os.path.join("fuentes", "Nunito-Bold.ttf")), int(alto_px * 0.040)) \
         if recurso(os.path.join("fuentes", "Nunito-Bold.ttf")) else None
     r = int(alto_px * 0.016)
@@ -1375,7 +1381,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
     # Color = gravedad: el nivel oficial más alto de cualquier aviso del día (lluvias, quebradas o calor).
     # Símbolos = por qué: las causas en nivel naranja o rojo (o la del nivel máximo si solo hay amarillo).
     capas = {"lluvias": rz["lluvias"], "quebradas": rz["quebradas"], "calor": rz.get("calor") or {}}
-    modo = (os.environ.get("FEN_MAPA") or d.get("mapa_modo") or "fen").lower()
+    modo = (os.environ.get("FEN_MAPA") or d.get("mapa_modo") or "gravedad").lower()
     niveles, causas = {}, {}
     if modo.startswith("grav"):
         # Opción "gravedad": color = nivel más alto de cualquier aviso; un solo símbolo, el de la causa del color
@@ -2127,7 +2133,7 @@ def leer_configuracion(carpeta_script):
         CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
         MODO_CORREO: automate | outlook | ninguno
     Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
-    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "fen"}
+    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "gravedad"}
     ruta = os.path.join(carpeta_script, "configuracion.txt")
     if not os.path.exists(ruta):
         return conf
@@ -2407,7 +2413,7 @@ def main():
             print("  El reporte sale sin el mapa (con la fila de agencias de siempre).")
         else:
             d["radar"] = resumir_radar(datos_radar, d["fecha"], [n for n, _ in d["agencias"]] or None)
-            d["mapa_modo"] = config.get("mapa", "fen")
+            d["mapa_modo"] = config.get("mapa", "gravedad")
             d["radar_estilo"] = ("mapa" if config["radar_estilo"].startswith("mapa") else
                                  "sedes" if config["radar_estilo"].startswith("sede") else "avisos")
             rz = d["radar"]

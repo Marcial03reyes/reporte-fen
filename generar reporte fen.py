@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16b (síntesis de líneas y fuente destacada)"
+VERSION = "2026-11-16c (mapa con capa de calor)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -927,7 +927,15 @@ def resumir_radar(datos, fecha_reporte, sedes=None):
     dia = f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}" if m else datetime.now().strftime("%Y-%m-%d")
     src, ds = datos.get("sources", {}), datos.get("datasets", {})
     res = {"dia": dia, "lluvias": {}, "lluvias_avisos": [], "quebradas": {}, "quebradas_aviso": "",
-           "enfen": None, "sedes": []}
+           "calor": {}, "calor_avisos": [], "enfen": None, "sedes": []}
+    for r in src.get("senamhi", {}).get("rows", []):        # calor: avisos SENAMHI del día (capa aparte en el mapa)
+        if "calor" in (r.get("eventIds") or []) and not r.get("solo_contexto") and r.get("jornada") == dia \
+                and r.get("nivel") in NIVEL_ORDEN:
+            res["calor_avisos"].append(r.get("numero_aviso"))
+            for dep in r.get("departamentos") or []:
+                if NIVEL_ORDEN[r["nivel"]] > NIVEL_ORDEN.get(res["calor"].get(dep), 0):
+                    res["calor"][dep] = r["nivel"]
+    res["calor_avisos"] = sorted({a for a in res["calor_avisos"] if a})
 
     # Lluvias: avisos SENAMHI con evento "lluvias", jornada = fecha del reporte
     filas = [r for r in src.get("senamhi", {}).get("rows", [])
@@ -1184,7 +1192,7 @@ def ruta_geojson():
     return recurso("peru_departamentos.geojson")
 
 
-def dibujar_mapa_png(niveles_dep, pines, alto_px=1500):
+def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None):
     """Silueta del Perú por departamentos coloreada por nivel oficial, con las sedes como puntos.
     niveles_dep: {"Lima": "Naranja", ...};  pines: [(nombre, nivel_impacto)]  -> BytesIO PNG."""
     import json
@@ -1214,6 +1222,25 @@ def dibujar_mapa_png(niveles_dep, pines, alto_px=1500):
         for poly in polys:
             for anillo in poly[:1]:
                 dr.polygon([xy(x, y) for x, y in anillo], fill=FILL_NIVEL[nivel] + (255,))
+    if calor:                                          # calor: rayas diagonales del color de su nivel
+        normc = {_sin_tildes(k_): v for k_, v in calor.items()}
+        paso, grosor = max(10, alto_px // 70), max(2, alto_px // 520)
+        for feat in geo["features"]:
+            nv_c = normc.get(_sin_tildes(feat["properties"].get("NOMBDEP", "")))
+            if not nv_c:
+                continue
+            mascara = Image.new("L", img.size, 0)
+            dm = ImageDraw.Draw(mascara)
+            g = feat["geometry"]
+            for poly in (g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]):
+                dm.polygon([xy(x, y) for x, y in poly[0]], fill=255)
+            rayas = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            dr_r = ImageDraw.Draw(rayas)
+            col = tuple(round(c_ * 0.72) for c_ in FILL_NIVEL[nv_c])
+            for x0 in range(-img.height, img.width, paso):
+                dr_r.line((x0, img.height, x0 + img.height, 0), fill=col + (255,), width=grosor)
+            img.paste(rayas, (0, 0), Image.composite(rayas, Image.new("RGBA", img.size), mascara).getchannel("A"))
+        dr = ImageDraw.Draw(img)
     for feat in geo["features"]:                       # bordes blancos encima
         g = feat["geometry"]
         polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
@@ -1268,7 +1295,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
     for dep, nv in rz["quebradas"].items():
         if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
             niveles[dep] = nv
-    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600)
+    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, calor=rz.get("calor"))
     mh = ph - 0.24
     mw = 0.0
     sw = lambda nv: ("■\u00a0", True, RGBColor(*FILL_NIVEL[nv]))
@@ -1279,7 +1306,12 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.12), Inches(mw), Inches(mh))
         # leyenda de intensidad en el mar, abajo a la izquierda del mapa
         ley = [[sw(nv), (INTENSIDAD[nv], False, P_INK)] for nv in ("Rojo", "Naranja", "Amarillo", "")]
-        texto(slide, mx - 0.35, py + ph - 0.80, 1.3, 0.72, ley, 8, nombre="Leyenda intensidad")
+        alto_ley = 0.72
+        if rz.get("calor"):
+            ley.append([("▨\u00a0", True, RGBColor(*[round(c_ * 0.72) for c_ in FILL_NIVEL["Rojo"]])),
+                        ("Rayas: aviso de calor", False, P_INK)])
+            alto_ley = 0.88
+        texto(slide, mx - 0.35, py + ph - alto_ley - 0.08, 1.45, alto_ley, ley, 8, nombre="Leyenda intensidad")
         mw += 0.35
     lx = px + 0.2
     la = pw - 0.35 - mw - 0.25

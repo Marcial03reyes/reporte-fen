@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16c (mapa con capa de calor)"
+VERSION = "2026-11-16d (mapa sin capa de calor)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1295,7 +1295,8 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
     for dep, nv in rz["quebradas"].items():
         if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
             niveles[dep] = nv
-    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, calor=rz.get("calor"))
+    MAPA_CON_CALOR = False      # el calor va en el pronóstico (texto), no en el mapa
+    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, calor=rz.get("calor") if MAPA_CON_CALOR else None)
     mh = ph - 0.24
     mw = 0.0
     sw = lambda nv: ("■\u00a0", True, RGBColor(*FILL_NIVEL[nv]))
@@ -1307,7 +1308,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         # leyenda de intensidad en el mar, abajo a la izquierda del mapa
         ley = [[sw(nv), (INTENSIDAD[nv], False, P_INK)] for nv in ("Rojo", "Naranja", "Amarillo", "")]
         alto_ley = 0.72
-        if rz.get("calor"):
+        if MAPA_CON_CALOR and rz.get("calor"):
             ley.append([("▨\u00a0", True, RGBColor(*[round(c_ * 0.72) for c_ in FILL_NIVEL["Rojo"]])),
                         ("Rayas: aviso de calor", False, P_INK)])
             alto_ley = 0.88

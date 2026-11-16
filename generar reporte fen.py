@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16d (mapa sin capa de calor)"
+VERSION = "2026-11-16e (mapa: gravedad + causa)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1192,7 +1192,42 @@ def ruta_geojson():
     return recurso("peru_departamentos.geojson")
 
 
-def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None):
+COLOR_CAUSA = {"lluvias": (7, 120, 190), "quebradas": (125, 80, 40), "calor": (225, 85, 25)}
+ETIQUETA_CAUSA = {"lluvias": "Lluvias", "quebradas": "Quebradas", "calor": "Calor"}
+
+
+def dibujar_causa(dr, tipo, cx, cy, s):
+    """Insignia redonda con el símbolo de la causa (gota, cerro con huaico o sol)."""
+    c = COLOR_CAUSA[tipo] + (255,)
+    r = s / 2
+    dr.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=c, width=max(2, int(s * .08)))
+    if tipo == "lluvias":
+        dr.polygon([(cx, cy - r * .62), (cx - r * .38, cy + r * .05), (cx + r * .38, cy + r * .05)], fill=c)
+        dr.ellipse((cx - r * .40, cy - r * .22, cx + r * .40, cy + r * .58), fill=c)
+    elif tipo == "quebradas":
+        dr.polygon([(cx - r * .62, cy + r * .45), (cx - r * .12, cy - r * .55), (cx + r * .18, cy - r * .02),
+                    (cx + r * .32, cy - r * .25), (cx + r * .66, cy + r * .45)], fill=c)
+        dr.ellipse((cx + r * .02, cy + r * .12, cx + r * .26, cy + r * .36), fill=(255, 255, 255, 255))
+    else:
+        rs = r * .30
+        dr.ellipse((cx - rs, cy - rs, cx + rs, cy + rs), fill=c)
+        import math as _m
+        for i in range(8):
+            a = i * _m.pi / 4
+            dr.line((cx + _m.cos(a) * r * .45, cy + _m.sin(a) * r * .45, cx + _m.cos(a) * r * .68,
+                     cy + _m.sin(a) * r * .68), fill=c, width=max(2, int(s * .07)))
+
+
+def icono_causa(tipo, lado=96):
+    img = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
+    dibujar_causa(ImageDraw.Draw(img), tipo, lado / 2, lado / 2, lado - 4)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    buf.seek(0)
+    return buf
+
+
+def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None, causas=None):
     """Silueta del Perú por departamentos coloreada por nivel oficial, con las sedes como puntos.
     niveles_dep: {"Lima": "Naranja", ...};  pines: [(nombre, nivel_impacto)]  -> BytesIO PNG."""
     import json
@@ -1248,6 +1283,36 @@ def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None):
             for anillo in poly[:1]:
                 dr.line([xy(x, y) for x, y in anillo] + [xy(*anillo[0])], fill=(255, 255, 255, 255),
                         width=max(2, alto_px // 400))
+    if causas:                                         # por qué: símbolos en el punto más interior del departamento
+        from PIL import ImageFilter
+        normz = {_sin_tildes(k_): v for k_, v in causas.items()}
+        s_ic = int(alto_px * 0.068)
+        red = 8
+        for feat in geo["features"]:
+            nombre = _sin_tildes(feat["properties"].get("NOMBDEP", ""))
+            lista = normz.get(nombre)
+            if not lista:
+                continue
+            m = Image.new("L", (img.width // red, img.height // red), 0)
+            dm = ImageDraw.Draw(m)
+            g = feat["geometry"]
+            for poly in (g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]):
+                dm.polygon([(px_ / red, py_ / red) for px_, py_ in (xy(x, y) for x, y in poly[0])], fill=255)
+            ultimo = m.getbbox()
+            while True:                                # se "come" el borde hasta quedar en el centro
+                bb = m.getbbox()
+                if not bb:
+                    break
+                ultimo = bb
+                m = m.filter(ImageFilter.MinFilter(3))
+            cx = (ultimo[0] + ultimo[2]) / 2 * red
+            cy = (ultimo[1] + ultimo[3]) / 2 * red
+            if nombre == "callao":                     # muy chico: el símbolo va al mar
+                cx -= s_ic * 1.1
+            paso_ic = s_ic * 1.02
+            x0 = cx - paso_ic * (len(lista) - 1) / 2
+            for i_, tipo in enumerate(lista):
+                dibujar_causa(dr, tipo, x0 + i_ * paso_ic, cy, s_ic)
     fuente = ImageFont.truetype(recurso(os.path.join("fuentes", "Nunito-Bold.ttf")), int(alto_px * 0.040)) \
         if recurso(os.path.join("fuentes", "Nunito-Bold.ttf")) else None
     r = int(alto_px * 0.016)
@@ -1291,12 +1356,19 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
     mapa del Perú (alerta oficial por departamento + sedes) a la derecha."""
     panel = caja(slide, px, py, pw, ph, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Panel impacto")
     panel.adjustments[0] = 0.06
-    niveles = dict(rz["lluvias"])
-    for dep, nv in rz["quebradas"].items():
-        if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
-            niveles[dep] = nv
-    MAPA_CON_CALOR = False      # el calor va en el pronóstico (texto), no en el mapa
-    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, calor=rz.get("calor") if MAPA_CON_CALOR else None)
+    # Color = gravedad: el nivel oficial más alto de cualquier aviso del día (lluvias, quebradas o calor).
+    # Símbolos = por qué: las causas en nivel naranja o rojo (o la del nivel máximo si solo hay amarillo).
+    capas = {"lluvias": rz["lluvias"], "quebradas": rz["quebradas"], "calor": rz.get("calor") or {}}
+    niveles, causas = {}, {}
+    for tipo, cap in capas.items():
+        for dep, nv in cap.items():
+            if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
+                niveles[dep] = nv
+    for dep, nv_max in niveles.items():
+        umbral = min(NIVEL_ORDEN["Naranja"], NIVEL_ORDEN[nv_max])
+        causas[dep] = [t for t, cap in capas.items() if NIVEL_ORDEN.get(cap.get(dep), 0) >= umbral]
+    MAPA_CON_CALOR = False      # sin rayas: el calor entra al color y se marca con su símbolo
+    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, causas=causas)
     mh = ph - 0.24
     mw = 0.0
     sw = lambda nv: ("■\u00a0", True, RGBColor(*FILL_NIVEL[nv]))
@@ -1306,14 +1378,21 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         mx = px + pw - 0.15 - mw
         slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.12), Inches(mw), Inches(mh))
         # leyenda de intensidad en el mar, abajo a la izquierda del mapa
-        ley = [[sw(nv), (INTENSIDAD[nv], False, P_INK)] for nv in ("Rojo", "Naranja", "Amarillo", "")]
-        alto_ley = 0.72
+        ley = [[sw("Rojo"), (INTENSIDAD["Rojo"] + "   ", False, P_INK), sw("Naranja"), (INTENSIDAD["Naranja"], False, P_INK)],
+               [sw("Amarillo"), (INTENSIDAD["Amarillo"] + " ", False, P_INK), sw(""), (INTENSIDAD[""], False, P_INK)]]
+        alto_ley = 0.36
+        tipos = [t for t in ("lluvias", "quebradas", "calor") if any(t in v for v in causas.values())]
+        if tipos:                                       # leyenda de símbolos (causa), encima de la de colores
+            yl = py + ph - 0.08 - alto_ley - 0.17 * len(tipos) - 0.04
+            for i_, t in enumerate(tipos):
+                icono(slide, icono_causa(t), mx - 0.55, yl + i_ * 0.17 + 0.015, 0.14)
+                texto(slide, mx - 0.37, yl + i_ * 0.17, 1.3, 0.17, ETIQUETA_CAUSA[t], 8, P_INK, nombre="Leyenda causa")
         if MAPA_CON_CALOR and rz.get("calor"):
             ley.append([("▨\u00a0", True, RGBColor(*[round(c_ * 0.72) for c_ in FILL_NIVEL["Rojo"]])),
                         ("Rayas: aviso de calor", False, P_INK)])
             alto_ley = 0.88
-        texto(slide, mx - 0.35, py + ph - alto_ley - 0.08, 1.45, alto_ley, ley, 8, nombre="Leyenda intensidad")
-        mw += 0.35
+        texto(slide, mx - 0.55, py + ph - alto_ley - 0.08, 1.75, alto_ley, ley, 8, nombre="Leyenda intensidad")
+        mw += 0.55
     lx = px + 0.2
     la = pw - 0.35 - mw - 0.25
     texto(slide, lx, py + 0.1, la, 0.26, "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11.5, P_BLUE_DK, "xb")

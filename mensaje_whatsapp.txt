@@ -11,37 +11,45 @@
 # ============================================================
 
 🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*
-📅 *Fecha:* 13/11/2026
+📅 *Fecha:* 16/11/2026
 🕗 *Corte:* 08:00 horas
 
 ⛈️ *Lluvias reportadas:*
-
-▪️ *Puno:* Lluvias fuertes durante la madrugada en Juliaca (San Román).
-
-🚧 *Vías restringidas:*
-
-▪️ *Ucayali:* Carretera Longitudinal de la Selva Norte (PE-5N), sector Padre Abad, con tránsito restringido en un solo sentido entre los km 441+120 y 441+350.
+- *Tumbes:* Lluvias torrenciales en Capitán Hoyle, distrito de San Jacinto, así como precipitaciones intensas en Corrales y sectores de Contralmirante Villar.
+- *Piura:* Lluvias intensas en Sullana, Chulucanas, Ayabaca, Tambogrande, Morropón y Huancabamba.
+- *Lambayeque:* Precipitaciones en Motupe y Olmos, con aniegos en calles y avenidas.
+- *La Libertad:* Lluvias reportadas en Chepén.
+- *Junín:* Precipitaciones en San Ramón, Chanchamayo, con inundaciones de calles.
+- *Cusco:* Intensas precipitaciones en las provincias de Paruro y Espinar.
 
 🌊 *Ríos, quebradas y otras afectaciones:*
+- *Tumbes:* Activación de las quebradas Cañaveral, Corralitos y Panales, en Casitas, Contralmirante Villar.
+- *Tumbes:* Activación de la quebrada Cabeza de Vaca, en Corrales, generando el aislamiento de un sector de la población.
+- *Piura:* Activación de la quebrada Río Seco, en la provincia de Morropón.
+- *Piura:* Crecida del río Serrán. Cinco personas quedaron atrapadas sobre el techo de una miniván en medio del cauce.
+- *Costa norte:* No se registran niveles elevados de caudales en los principales ríos monitoreados al momento del corte.
 
-▪️ *Puno:* Inundación de diferentes sectores del mercado Túpac Amaru de Juliaca por acumulación de agua, con afectación a comerciantes.
+🏞️ *Huaicos y deslizamientos:*
+- *Cajamarca:* Deslizamiento de piedras y rocas en el km 81 de la carretera PE-3N, sector San Felipe, Jaén.
+- *Cusco:* Afectaciones por lluvias y deterioro de la vía en el sector Ankukunka, provincia de Paruro, con vehículos varados.
 
-▪️ *Pasco:* Las lluvias intensas del 12/11 dañaron la infraestructura de transporte en el C. P. Independencia, distrito de Páucar, provincia Daniel Alcides Carrión (COEN).
+🚧 *Vías restringidas:*
+- *Tumbes:* Tránsito interrumpido en ambos sentidos de la carretera TU-105, sector Cañaveral, km 59 al 60.
+- *Tumbes:* Tránsito interrumpido en ambos sentidos de la carretera TU-105, sector Corralitos, km 54 al 55.
+- *Tumbes:* Tránsito interrumpido en ambos sentidos de la carretera TU-105, sector Panales, km 50 al 51.
+- *Cajamarca:* Tránsito interrumpido en el km 81 de la carretera PE-3N, San Felipe, Jaén, por deslizamiento de piedras. Se realizan trabajos de limpieza con maquinaria pesada.
+- *Cusco:* Dificultades para el tránsito vehicular en el sector Ankukunka, provincia de Paruro, con vehículos varados.
 
-🏢 *Impacto en infraestructura Credicorp:*
+📡 *PRONÓSTICO PARA HOY* 
 
-▪️ *Infraestructura:* Sin afectación en agencias.
-▪️ *Colaboradores:* Sin afectación en colaboradores.
+- *COSTA:* Posibilidad de precipitaciones ligeras a moderadas en algunos sectores de la costa norte durante el día.
+- *SIERRA:* Se prevén precipitaciones de moderada a fuerte intensidad en sectores de la sierra norte y centro.
+- *SELVA:* Sin información específica en el pronóstico proporcionado.
 
-📡 *Pronóstico de hoy (SENAMHI – aviso vigente hasta las 13:00 h del 13/11)*
-
-▪️ *COSTA:* Lluvias de ligera a fuerte intensidad, principalmente al interior de Tumbes, y de ligera a moderada intensidad al interior de Piura. Lloviznas de ligera intensidad en la costa centro y sur.
-
-▪️ *SIERRA:* Lluvias de moderada a fuerte intensidad en la sierra centro y sur, y de ligera a moderada en la sierra norte, con descargas eléctricas y ráfagas de viento. Nieve por encima de los 3,900 m s. n. m. y granizo por encima de los 2,800 m s. n. m. En Arequipa, mayor probabilidad de lluvias moderadas en los distritos orientales de la provincia.
-
-▪️ *SELVA:* Lluvias localizadas y/o chubascos de ligera a moderada intensidad en la selva norte y centro-sur, con descargas eléctricas y ráfagas de viento, con mayor probabilidad durante la noche y madrugada.
-
-⚠️ *Alerta:* Posible activación de quebradas (nivel rojo) hasta el 13/11 en provincias de Arequipa y Huancavelica.
+*Departamentos bajo aviso 24h (hasta las 13h 16/11):*
+- *Nivel rojo:* Tumbes y Piura.
+- *Nivel naranja:* Áncash, Cajamarca, Huánuco, La Libertad y Lambayeque.
+- *Nivel amarillo:* Amazonas, Apurímac, Arequipa, Ayacucho, Cusco, Huancavelica, Junín, Lima, Madre de Dios, Pasco, Puno, San Martín y Ucayali.
 
 📡 Se mantiene el monitoreo.
 
@@ -53,8 +61,8 @@
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
-📅Fecha: 13/11/2026
-🕕Corte: 09:26 horas
+📅Fecha: 16/11/2026
+🕕Corte: 09:24 horas
 
 * Piura: Sin afectaciones reportadas ambos locales.
 * Chiclayo: Sin afectaciones reportadas.
@@ -74,7 +82,7 @@ Saludos,
 # Persona 1 y 2: escribe el nombre cuando cada una confirme por WhatsApp.
 #   Sin las dos confirmaciones no se genera el reporte ni se envía el correo.
 [CONFIRMACIONES]
-NUMERO: 007
+NUMERO: 009
 Persona 1: Paola
 Persona 2: Elizabeth
 

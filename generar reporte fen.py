@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16g (mapa de gravedad, íconos sutiles)"
+VERSION = "2026-11-16h (mapa FEN: color por agua, calor como ícono)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1381,7 +1381,7 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
     # Color = gravedad: el nivel oficial más alto de cualquier aviso del día (lluvias, quebradas o calor).
     # Símbolos = por qué: las causas en nivel naranja o rojo (o la del nivel máximo si solo hay amarillo).
     capas = {"lluvias": rz["lluvias"], "quebradas": rz["quebradas"], "calor": rz.get("calor") or {}}
-    modo = (os.environ.get("FEN_MAPA") or d.get("mapa_modo") or "gravedad").lower()
+    modo = (os.environ.get("FEN_MAPA") or d.get("mapa_modo") or "fen").lower()
     niveles, causas = {}, {}
     if modo.startswith("grav"):
         # Opción "gravedad": color = nivel más alto de cualquier aviso; un solo símbolo, el de la causa del color
@@ -2133,7 +2133,7 @@ def leer_configuracion(carpeta_script):
         CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
         MODO_CORREO: automate | outlook | ninguno
     Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
-    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "gravedad"}
+    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "fen"}
     ruta = os.path.join(carpeta_script, "configuracion.txt")
     if not os.path.exists(ruta):
         return conf
@@ -2413,7 +2413,7 @@ def main():
             print("  El reporte sale sin el mapa (con la fila de agencias de siempre).")
         else:
             d["radar"] = resumir_radar(datos_radar, d["fecha"], [n for n, _ in d["agencias"]] or None)
-            d["mapa_modo"] = config.get("mapa", "gravedad")
+            d["mapa_modo"] = config.get("mapa", "fen")
             d["radar_estilo"] = ("mapa" if config["radar_estilo"].startswith("mapa") else
                                  "sedes" if config["radar_estilo"].startswith("sede") else "avisos")
             rz = d["radar"]

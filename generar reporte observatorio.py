@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-16c (Observatorio)"
+VERSION_OBS = "2026-11-16d (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -306,6 +306,11 @@ def leer_datos_observatorio(ruta):
     d["horario"] = f"Corte: {capt:%H:%M} horas"
 
     secciones, descartes = hechos_oficiales(snap, desde, hasta)
+    # Departamentos con quebradas activadas o huaicos reportados (COEN/INDECI): ícono de quebrada en el mapa
+    d["quebradas_hechos"] = sorted({dep for k in ("rios", "huaicos") for h in secciones[k]
+                                    if re.search(r"quebrada|huaico", h["texto"], re.I)
+                                    for dep in ([h["lugar"]] if h["lugar"] and " y " not in h["lugar"]
+                                                else re.split(r",\s*|\s+y\s+", h["lugar"])) if dep})
     for k, lista in secciones.items():
         d[k] = [(f"{h['lugar']}: " if h["lugar"] else "") + h["texto"] for h in lista]
     d["p1_titulo"] = "HOY"

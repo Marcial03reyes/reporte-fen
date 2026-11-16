@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16h (mapa FEN: color por agua, calor como ícono)"
+VERSION = "2026-11-16i (mapa FEN + quebradas reportadas)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1399,9 +1399,15 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
             for dep, nv in capas[tipo].items():
                 if NIVEL_ORDEN[nv] > NIVEL_ORDEN.get(niveles.get(dep), 0):
                     niveles[dep] = nv
-        for dep in set(capas["lluvias"]) | set(capas["quebradas"]) | {k_ for k_, v in capas["calor"].items() if v == "Rojo"}:
+        # quebradas activadas reportadas hoy por fuentes oficiales (COEN): solo ícono, no cambian el color
+        q_hechos = {_sin_tildes(x_) for x_ in d.get("quebradas_hechos") or []}
+        todos = set(capas["lluvias"]) | set(capas["quebradas"]) | {k_ for k_, v in capas["calor"].items() if v == "Rojo"}
+        todos |= {x_ for x_ in d.get("quebradas_hechos") or []}
+        for dep in todos:
             causas[dep] = [t for t in ("lluvias", "quebradas", "calor") if
-                           (t != "calor" and capas[t].get(dep)) or (t == "calor" and capas[t].get(dep) == "Rojo")]
+                           (t == "lluvias" and capas[t].get(dep)) or
+                           (t == "quebradas" and (capas[t].get(dep) or _sin_tildes(dep) in q_hechos)) or
+                           (t == "calor" and capas[t].get(dep) == "Rojo")]
     MAPA_CON_CALOR = False      # sin rayas: el calor entra al color y se marca con su símbolo
     res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, causas=causas)
     mh = ph - 0.24

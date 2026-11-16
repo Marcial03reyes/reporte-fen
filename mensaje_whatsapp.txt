@@ -8,6 +8,9 @@
 #     Si trae "Medidas", "Recomendaciones" o "Vigencia", se incluyen solas; si no, no pasa nada.
 #     La parte "Impacto en infraestructura Credicorp" se ignora: el impacto de Pacífico
 #     sale del mensaje de agencias (2) y de [COLABORADORES AFECTADOS].
+#     "Huaicos y deslizamientos" sale como sección propia.
+#     "Departamentos bajo aviso 24h" NO sale como texto: se pinta en el mapa (es el mismo aviso
+#     oficial que muestra el Observatorio; si el Observatorio no lo trae, se usa esta lista).
 # ============================================================
 
 🇵🇪 *REPORTE FENOMENOLÓGICO NACIONAL*

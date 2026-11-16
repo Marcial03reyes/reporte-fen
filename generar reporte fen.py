@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-13c (títulos ExtraBold con respaldo)"
+VERSION = "2026-11-16 (huaicos y lista de avisos)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -90,7 +90,8 @@ SECCIONES = {
 
 
 def _vacio():
-    return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [],
+    return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [], "huaicos": [],
+            "aviso_dptos": {}, "aviso_dptos_titulo": "",
             "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
             "conf": [], "sedes": "", "colab": "", "pie": [], "medidas": [], "recomendaciones": [], "vigencia": "",
             "colab_casos": [], "colab_nivel": "",
@@ -282,6 +283,10 @@ def _tipo_seccion(titulo):
         return "medidas"
     if hay(r"impacto|credicorp|infraestructura|colaborador|agencia"):
         return "ignorar"            # el impacto lo completa Pacífico
+    if hay(r"bajo aviso|aviso 24|departamentos? (bajo|con) aviso|niveles? de aviso"):
+        return "aviso_dptos"        # lista oficial de departamentos por nivel: va al mapa, no como texto
+    if hay(r"huaicos?|deslizamientos?|derrumbes?|movimientos? en masa"):
+        return "huaicos"
     if hay(r"v[ií]as?\b|carreteras?\b|tr[aá]nsito|tramos?\b"):
         return "vias"
     if hay(r"r[ií]os?\b|quebradas?|crecida|huaicos?|deslizamientos?|desbordes?|caudal|otras afectaciones|inundaci"):
@@ -363,9 +368,12 @@ def _leer_whatsapp(lineas, d):
             if tipo == "pronostico":
                 actual = "p1" if not d["p1"] else "p2"
                 titulo = re.sub(r"^pron[oó]stico\s*[–\-:]*\s*", "", linea, flags=re.I).rstrip(":").strip()
-                titulo = re.sub(r"^de\s+", "", titulo, flags=re.I)          # "Pronóstico de hoy" -> "HOY"
+                titulo = re.sub(r"^(de|para(\s+el)?)\s+", "", titulo, flags=re.I)   # "de hoy"/"para hoy" -> "HOY"
                 titulo = re.sub(r"\s+", " ", re.sub(r"(\S)\(", r"\1 (", titulo))   # "HOY(Hasta" -> "HOY (Hasta"
                 d[actual + "_titulo"] = titulo.upper() if titulo else "PRONÓSTICO"
+            elif tipo == "aviso_dptos":
+                actual = "aviso_dptos"
+                d["aviso_dptos_titulo"] = linea.rstrip(":")
             elif tipo:
                 actual = tipo
             else:
@@ -373,6 +381,17 @@ def _leer_whatsapp(lineas, d):
                 print(f"  Aviso: no reconocí la sección «{linea.rstrip(':')}»; sus líneas no se incluyen.")
             continue
 
+        if actual == "aviso_dptos":
+            # "Nivel rojo: Tumbes y Piura."  ->  {"Tumbes": "Rojo", "Piura": "Rojo"}
+            m = re.match(r"(?:nivel\s+)?(rojo|naranja|amarillo)\s*:\s*(.+)$", low)
+            if m:
+                nv = m.group(1).capitalize()
+                cuerpo = linea.split(":", 1)[1].strip().rstrip(".")
+                for dep in re.split(r",\s*|\s+y\s+|\s+e\s+", cuerpo):
+                    dep = dep.strip()
+                    if dep and NIVEL_ORDEN.get(nv, 0) > NIVEL_ORDEN.get(d["aviso_dptos"].get(dep), 0):
+                        d["aviso_dptos"][dep] = nv
+            continue
         if actual and actual != "ignorar":
             if re.fullmatch(r"(s/?n|n/?a|sin novedad(es)?|ninguno|ninguna|sin reportes?|-+)\.?", low.strip()):
                 continue                                  # "s/n" = sin novedades: la sección queda en "Sin reportes."
@@ -542,6 +561,17 @@ def _rio(dr, c, s):
     dr.ellipse((s*.46, s*.20, s*.56, s*.30), fill=c)
 
 
+def _huaico(dr, c, s):
+    """Ladera con rocas cayendo."""
+    w = s // 18
+    dr.line((s*.08, s*.86, s*.92, s*.86), fill=c, width=w)
+    dr.line((s*.10, s*.86, s*.36, s*.22), fill=c, width=w)
+    dr.line((s*.36, s*.22, s*.50, s*.40), fill=c, width=w)
+    dr.ellipse((s*.52, s*.44, s*.66, s*.58), outline=c, width=w)
+    dr.ellipse((s*.66, s*.62, s*.84, s*.80), outline=c, width=w)
+    dr.ellipse((s*.46, s*.66, s*.56, s*.76), fill=c)
+
+
 def _edificio(dr, c, s):
     w = s // 18
     dr.polygon([(s*.10, s*.36), (s*.50, s*.12), (s*.90, s*.36)], outline=c, width=w)
@@ -662,7 +692,7 @@ def texto(slide, x, y, w, h, partes, size, color=NAVY, bold=False, align=PP_ALIG
     return tb
 
 
-def vinetas(slide, x, y, w, h, items, size, nombre, esp=3):
+def vinetas(slide, x, y, w, h, items, size, nombre, esp=3, align=PP_ALIGN.JUSTIFY):
     """Lista con viñetas reales de PowerPoint; la etiqueta antes de ':' va en negrita."""
     tb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
     tb.name = nombre
@@ -672,7 +702,7 @@ def vinetas(slide, x, y, w, h, items, size, nombre, esp=3):
     for i, linea in enumerate(items):
         etq, txt = separar(linea)
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.alignment = PP_ALIGN.JUSTIFY
+        p.alignment = align
         p.space_after = Pt(esp)
         p.line_spacing = Pt(round(size * 1.15, 1))  # interlineado fijo: igual en PowerPoint y LibreOffice
         pPr = p._p.get_or_add_pPr()
@@ -775,6 +805,29 @@ def cargar_radar(carpetas):
             except Exception:  # noqa: BLE001
                 continue
     return None, motivo + " y no hay snapshot.json en la carpeta"
+
+
+def usar_lista_wsp(d, rz):
+    """El mensaje de WhatsApp trae 'Departamentos bajo aviso 24h' (aviso de activación de quebradas).
+    No se repite como texto: va al mapa. Si el Observatorio no trae las zonas de ese aviso, se usa la lista;
+    si las trae, se comparan y se avisa de las diferencias."""
+    lista = d.get("aviso_dptos") or {}
+    if not lista:
+        return
+    norm = lambda x: _sin_tildes(x).strip()
+    if not rz["quebradas"]:
+        rz["quebradas"] = dict(lista)
+        rz["quebradas_origen"] = "whatsapp"
+        print(f"  Quebradas: el Observatorio no trae las zonas; se usa la lista del WhatsApp "
+              f"({len(lista)} dptos: {sum(v == 'Rojo' for v in lista.values())} rojo, "
+              f"{sum(v == 'Naranja' for v in lista.values())} naranja, {sum(v == 'Amarillo' for v in lista.values())} amarillo).")
+        return
+    obs = {norm(k): v for k, v in rz["quebradas"].items()}
+    dif = [f"{k} (WhatsApp {v} / Observatorio {obs.get(norm(k)) or 'sin aviso'})"
+           for k, v in lista.items() if obs.get(norm(k)) != v]
+    if dif:
+        print("  [!] La lista 'bajo aviso' del WhatsApp no coincide con el Observatorio en: " + "; ".join(dif[:6])
+              + (" …" if len(dif) > 6 else "") + ". El mapa usa el Observatorio.")
 
 
 def fin_local(iso):
@@ -1173,11 +1226,15 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
             sedes_l = lista_sedes(d)
             por_fila = 4
             cw = (ancho_chip - 0.15) / por_fila
+            fs_s = 9.5                               # que "✓ Arequipa (2)" entre en su celda sin partirse
+            largo_max = max((c_ + (f" ({n_})" if n_ > 1 else "") for c_, n_, _ in sedes_l), key=len, default="")
+            while fs_s > 7 and ancho_pt("✓ " + largo_max, fs_s) * 1.05 > (cw - 0.05) * 72:
+                fs_s -= 0.5
             for k_, (ciudad, cant, nv) in enumerate(sedes_l):
                 marca = ("✓\u00a0", True, OK_FG) if nv == "ok" else ("⚠\u00a0", True, COLORES_NIVEL[nv][1])
-                nom = ciudad + (f" ({cant})" if cant > 1 else "")
+                nom = ciudad + (f"\u00a0({cant})" if cant > 1 else "")
                 texto(slide, lx + 0.62 + (k_ % por_fila) * cw, y - 0.04 + (k_ // por_fila) * 0.2, cw, 0.2,
-                      [[marca, (nom, nv != "ok", P_INK if nv == "ok" else COLORES_NIVEL[nv][1])]], 9.5,
+                      [[marca, (nom, nv != "ok", P_INK if nv == "ok" else COLORES_NIVEL[nv][1])]], fs_s,
                       nombre="Sede " + ciudad)
             y += -(-len(sedes_l) // por_fila) * 0.2 + 0.04
     if d.get("colab_casos"):
@@ -1319,9 +1376,14 @@ def construir(d, salida_pptx, borrador=False):
     bloques = [(d["p1_titulo"] or "PRONÓSTICO", P_BLUE_DK, d["p1"] or ["Sin pronóstico."])]
     if d["p2"]:
         bloques.append((d["p2_titulo"] or "NOCHE Y MADRUGADA", P_PINK, d["p2"]))
-    secs_base, bloques_base = secs, bloques
-    # Secciones opcionales: aparecen solo si el mensaje las trae
+    # Secciones que pueden pasar a la columna del pronóstico si a la izquierda no entran
     extras = []
+    rios_sec = secs.pop()
+    extras.append((rios_sec, (rios_sec[0], P_PINK, rios_sec[3])))
+    if d.get("huaicos"):
+        h_ = ("HUAICOS Y DESLIZAMIENTOS", _huaico, G_AMBER, d["huaicos"])
+        extras.append((h_, (h_[0], WARN_FG, h_[3])))
+    secs_base, bloques_base = secs, bloques
     if d["medidas"]:
         extras.append((("MEDIDAS", _megafono, G_PURPLE, d["medidas"]), ("MEDIDAS", P_PURPLE, d["medidas"])))
     if d.get("recomendaciones"):
@@ -1359,13 +1421,14 @@ def construir(d, salida_pptx, borrador=False):
     def alto_bloque_radar(RW):
         return (alto_radar(rz, rz_estilo, RW - 0.44) + 0.10) if (rz and rz_estilo != "mapa") else 0.0
 
-    ESP_DER = 9          # puntos entre viñetas del pronóstico
+    def esp_der(bl):     # puntos entre viñetas de la derecha: aire si hay poco texto, juntas si hay mucho
+        return 9 if sum(len(it) for *_, it in bl) <= 5 else 4
     ESP_IZQ = 2          # puntos entre viñetas del estatus (poco: así la letra puede ser más grande)
 
     def fs_der(RW):
         rw = RW - 0.56
         y1d = ry1 - alto_bloque_radar(RW)           # el bloque del Radar ocupa la parte baja de la columna
-        need = lambda f: sum(alto_tit(t, rw) + alto_lista(it, f, rw, ESP_DER) + 0.22 for t, _, it in bloques)
+        need = lambda f: sum(alto_tit(t, rw) + alto_lista(it, f, rw, esp_der(bloques)) + 0.22 for t, _, it in bloques)
         fs = 12.5
         while fs > MIN_FS and need(fs) > y1d - ry0:
             fs -= 0.5
@@ -1399,28 +1462,33 @@ def construir(d, salida_pptx, borrador=False):
     for lados in itertools.product(("izq", "der"), repeat=len(extras)):
         secs_o = secs_base + [e[0] for e, lado in zip(extras, lados) if lado == "izq"]
         bloques_o = bloques_base + [e[1] for e, lado in zip(extras, lados) if lado == "der"]
-        opciones.append((secs_o, bloques_o))
+        opciones.append((secs_o, bloques_o, lados.count("der")))
     # Con el mapa, si la columna izquierda no entra, el panel de impacto se hace más bajo.
     alturas = [EXTRA_AG_TOTAL - r for r in (0.0, 0.08, 0.16, 0.24)] if es_mapa else [EXTRA_AG_TOTAL]
-    for EXTRA_AG_TOTAL in alturas:
+    # Días con muchísimo texto: se permite letra algo menor antes que dejar algo tapado
+    pruebas = [(mf, ex) for mf in (7.5, 7.0, 6.5) for ex in alturas]
+    for MIN_FS, EXTRA_AG_TOTAL in pruebas:
         Y1_COMPACTO = 6.08 - EXTRA_AG_TOTAL
         mejor = None
         for ESP in ESPACIADOS:
-            for secs, bloques in opciones:
+            for secs, bloques, movidas in opciones:
                 m = elegir(Y1_COMPACTO)
-                if mejor is None or m[0] > mejor[0][0]:
-                    mejor = (m, secs, bloques, ESP)
+                # pasar una sección a la derecha solo si hace falta o si la letra gana al menos 1 pt
+                clave = (m[0][0], m[0][1] - (0.9 * movidas if m[0][0] else 0)) + tuple(m[0][2:])
+                if mejor is None or clave > mejor[4]:
+                    mejor = (m, secs, bloques, ESP, clave)
             if mejor[0][0][0] and mejor[0][0][1] >= 9:      # entra con letra legible: no compactar
                 break
-        if mejor[0][0][0]:                                  # entra: no achicar más el panel
+        if mejor[0][0][0]:                                  # entra: no achicar más el panel ni la letra
             break
-    (m, secs, bloques, ESP) = mejor
+    (m, secs, bloques, ESP, _) = mejor
     (cabe, *_), LW, RW, fs, fs2 = m
     RX = LX + LW + GAP
 
     # ---- Tarjetas blancas con encabezado tenue
     for x, w, titulo, nom, color in ((LX, LW, "ESTATUS DEL DÍA", "Tarjeta estatus", P_BLUE_DK),
-                                     (RX, RW, "PRONÓSTICO DE LLUVIAS", "Tarjeta pronostico", P_PINK)):
+                                     (RX, RW, "PRONÓSTICO DE LLUVIAS" if len(bloques) == len(bloques_base)
+                                      else "PRONÓSTICO Y AFECTACIONES", "Tarjeta pronostico", P_PINK)):
         c = caja(slide, x, TOP, w, BOTTOM - TOP, WHITE, P_LINE, MSO_SHAPE.ROUNDED_RECTANGLE, nom)
         c.adjustments[0] = 0.035
         sombra_suave(c)
@@ -1532,9 +1600,10 @@ def construir(d, salida_pptx, borrador=False):
     for i, (t, col, items) in enumerate(bloques):
         ht = alto_tit(t, rl_w)
         texto(slide, rl_x, y, rl_w, ht, t.upper(), 13, col, "xb")
-        h = alto_lista(items, fs2, rl_w, ESP_DER)
+        h = alto_lista(items, fs2, rl_w, esp_der(bloques))
         vinetas(slide, rl_x, y + ht, rl_w, h + 0.02, items, fs2,
-                t.capitalize() if i >= len(bloques_base) else f"Pronostico {i + 1}", esp=ESP_DER)
+                t.capitalize() if i >= len(bloques_base) else f"Pronostico {i + 1}", esp=esp_der(bloques),
+                align=PP_ALIGN.LEFT)   # columna angosta: justificado deja huecos grandes
         y += ht + h + 0.22
         if i < len(bloques) - 1:
             linea_h(slide, rl_x, RX + RW - 0.28, y - 0.11)
@@ -2081,7 +2150,9 @@ def main():
             print("      Revisa CARPETA_SALIDA en configuracion.txt (debe ser tu carpeta de OneDrive).")
     d = leer_datos(a.datos)
     print(f"Leído: {len(d['lluvias'])} lluvias · {len(d['vias'])} vías · {len(d['rios'])} ríos/quebradas · "
-          f"{len(d['p1']) + len(d['p2'])} pronósticos"
+          + (f"{len(d['huaicos'])} huaicos · " if d["huaicos"] else "")
+          + (f"lista bajo aviso: {len(d['aviso_dptos'])} dptos (va al mapa) · " if d["aviso_dptos"] else "")
+          + f"{len(d['p1']) + len(d['p2'])} pronósticos"
           + (f" · {len(d['medidas'])} medidas" if d["medidas"] else "")
           + (f" · {len(d['recomendaciones'])} recomendaciones" if d["recomendaciones"] else ""))
     if d["colab_casos"]:
@@ -2124,6 +2195,7 @@ def main():
             if capt:
                 print(f"  Datos del {capt[8:]}/{capt[5:7]}/{capt[:4]}"
                       + ("" if descargado else f" (archivo: {os.path.join(carpeta_script, 'snapshot.json')})"))
+            usar_lista_wsp(d, rz)
             print(f"  Lluvias en {len(rz['lluvias'])} dptos · quebradas en {len(rz['quebradas'])} dptos · "
                   f"{sum(1 for s_ in rz['sedes'] if s_['nivel'])} sede(s) en zona con aviso")
             if capt and capt != rz["dia"]:

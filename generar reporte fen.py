@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-17 (mapa FEN + quebradas reportadas)"
+VERSION = "2026-11-17b (leyenda solo de niveles)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1423,7 +1423,8 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
                [sw("Amarillo"), (INTENSIDAD["Amarillo"] + " ", False, P_INK), sw(""), (INTENSIDAD[""], False, P_INK)]]
         alto_ley = 0.36
         tipos = [t for t in ("lluvias", "quebradas", "calor") if any(t in v for v in causas.values())]
-        if tipos:                                       # leyenda de símbolos (causa), encima de la de colores
+        LEYENDA_CAUSAS = False                          # solo la leyenda de niveles (Extremo, Alto, …)
+        if tipos and LEYENDA_CAUSAS:                    # leyenda de símbolos (causa), encima de la de colores
             yl = py + ph - 0.08 - alto_ley - 0.17 * len(tipos) - 0.04
             for i_, t in enumerate(tipos):
                 icono(slide, icono_causa(t), mx - 0.55, yl + i_ * 0.17 + 0.015, 0.14)
@@ -1437,7 +1438,10 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         mw += 0.55
     lx = px + 0.2
     la = pw - 0.35 - mw - 0.25
-    texto(slide, lx, py + 0.1, la, 0.26, "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11.5, P_BLUE_DK, "xb")
+    tit_p, fs_tp = "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11.5
+    while fs_tp > 8.5 and ancho_pt(tit_p, fs_tp, True) * 1.08 > la * 72:   # el título siempre en una línea
+        fs_tp -= 0.5
+    texto(slide, lx, py + 0.1, la, 0.26, tit_p, fs_tp, P_BLUE_DK, "xb")
     y = py + 0.38
     for etq, ic, col, valor in impactos:
         v = valor or "Sin afectación reportada."

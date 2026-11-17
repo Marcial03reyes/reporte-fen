@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-16d (Observatorio)"
+VERSION_OBS = "2026-11-17 (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -40,8 +40,10 @@ NO_CONFIRMADO = re.compile(r"pendiente|por confirmar|sin confirmar|por corrobora
 # Publicaciones que no son hechos del día (campañas, notas de prensa, actividades)
 NO_HECHO = re.compile(r"nota de prensa|prep[aá]rate|recomienda|recomendaciones|campa[ñn]a|simulacro|papa\b|le[oó]n xiv|"
                       r"visita|#cuidatupiel|conoce c[oó]mo|infograf", re.I)
-PRONOSTICO = re.compile(r"^\s*se prev[eé]n?|contin[uú]an? las lluvias|\(\d{1,2}:\d{2} a \d{1,2}:\d{2} ?h\)|"
+PRONOSTICO = re.compile(r"^\s*se prev[eé]n?|persistir[aá]n|contin[uú]an? las lluvias|\(\d{1,2}:\d{2} a \d{1,2}:\d{2} ?h\)|"
                         r"toma tus precauciones|pr[oó]ximas \d* ?horas|#pron[oó]stico|#aviso\b|se estima|podr[ií]an? alcanzar", re.I)
+OBSERVADO = re.compile(r"\b(registr[oóa]\w*|alcanz[oó]|super[oó]|superando|ocurri[oó]|ocurrieron|activ[oó]|"
+                       r"report[oó]|se produjo|provoc[oó]|desbord)", re.I)
 TEMPERATURA = re.compile(r"°\s*c|temperatura|calor|radiaci[oó]n", re.I)
 
 SECCION_DE = [  # prioridad: el primer patrón que calce decide la sección
@@ -96,6 +98,7 @@ def limpiar_post(texto):
     t = re.sub(r"[\U0001F000-\U0001FFFF☀-➿⬀-⯿️‍]", " ", t)
     t = re.sub(r"#(\w+)", _hashtag, t)
     t = re.sub(r"@\w+", "", t)
+    t = re.sub(r"\s*(per[uú] ?responde\s*)?ante el fen[oó]meno el ni[ñn]o\.?\s*$", "", t, flags=re.I)   # cola de hashtags
     t = re.sub(r"\s+", " ", t).strip(" |:-–")
     t = re.sub(r"^(\|\s*)+", "", t).strip()
     return t
@@ -118,7 +121,8 @@ def recortar(texto, maximo=260):
 def quitar_previsiones(texto):
     """Dentro de un hecho, quita las oraciones de pronóstico ('Se prevé que las lluvias continúen…')."""
     frases = re.split(r"(?<=[.!])\s+", texto)
-    quedan = [f for f in frases if not re.match(r"^(se prev[eé]n?|se espera|se esperan|podr[ií]a)", f.strip(), re.I)]
+    quedan = [f for f in frases if not re.match(r"^(se prev[eé]n?|se espera|se esperan|podr[ií]a|persistir[aá]n|"
+                                                r"al[eé]jate|sigue las|mantente|toma tus|ev[ií]ta)", f.strip(), re.I)]
     return " ".join(quedan) if quedan else texto
 
 
@@ -150,13 +154,18 @@ def hechos_oficiales(snap, desde, hasta):
         if NO_CONFIRMADO.search(crudo):
             descartes["no confirmado"] += 1
             continue
-        if NO_HECHO.search(crudo):
+        if re.search(r"papa\b|le[oó]n xiv", crudo, re.I) or (NO_HECHO.search(crudo) and not OBSERVADO.search(crudo)):
             descartes["no es un hecho"] += 1
             continue
         texto = limpiar_post(crudo)
         if PRONOSTICO.search(crudo) or PRONOSTICO.search(texto):
-            descartes["pronóstico"] += 1
-            continue
+            # Un aviso de corto plazo puede traer también un dato ya ocurrido ("El Ciruelo registró 71 mm",
+            # "el río Tumbes alcanzó 840 m³/s"): se queda solo con esas oraciones; si no hay ninguna, se descarta.
+            obs = [f for f in re.split(r"(?<=[.!])\s+", texto) if OBSERVADO.search(f) and not PRONOSTICO.search(f)]
+            if not obs:
+                descartes["pronóstico"] += 1
+                continue
+            texto = " ".join(obs)
         seccion = next((k for k, rx in SECCION_DE if rx.search(texto)), None)
         if not seccion or (seccion == "lluvias" and TEMPERATURA.search(texto) and not re.search(r"\bmm\b|lluvios", texto)):
             descartes["no es un hecho"] += 1
@@ -313,6 +322,7 @@ def leer_datos_observatorio(ruta):
                                                 else re.split(r",\s*|\s+y\s+", h["lugar"])) if dep})
     for k, lista in secciones.items():
         d[k] = [(f"{h['lugar']}: " if h["lugar"] else "") + h["texto"] for h in lista]
+    d["origen_observatorio"] = True
     d["p1_titulo"] = "HOY"
     d["p1"] = pronostico(snap, dia, desde)
     d["nota"] = d.get("nota") or "Se mantiene el monitoreo."

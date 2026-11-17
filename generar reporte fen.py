@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-16i (mapa FEN + quebradas reportadas)"
+VERSION = "2026-11-17 (mapa FEN + quebradas reportadas)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -425,7 +425,7 @@ def _fusionar(textos):
             enlace = ult + " " if ult.lower() in ("de", "del", "en", "a", "por", "con") else ""
             return base + " " + restos[0] + "".join(f"; y {enlace}{r}" for r in restos[1:]) + "."
         # Sin comienzo común: mismas oraciones bajo una sola etiqueta
-        return " ".join(t if t.endswith(".") else t + "." for t in textos)
+        return " ".join(t if t.endswith((".", "…")) else t + "." for t in textos)
     pref = pref[:corte].strip()
     restos = [t[corte + 1:].strip().rstrip(".").strip() for t in textos]
     if any(not r for r in restos):
@@ -1676,6 +1676,8 @@ def construir(d, salida_pptx, borrador=False):
             RW = ANCHO_TOTAL - LW - GAP
             if RW < 3.45:                      # por debajo, el título del pronóstico ya no entra legible
                 continue
+            if es_mapa and LW < 7.5:           # el panel con el mapa necesita ancho (chips + lista de sedes + mapa)
+                continue
             (a, ok_a, ov_a), (b, ok_b, ov_b) = fs_izq(LW, y1), fs_der(RW)
             ok = ok_a and ok_b
             clave = (ok, min(a, b) if ok else -(ov_a + ov_b), a + b, -abs(LW - 7.75))
@@ -2400,7 +2402,7 @@ def main():
             print(f"  Aviso: el mensaje de agencias es del {d['ag_fecha']} y el reporte es del {d['fecha']}. "
                   "Pega el mensaje de agencias de hoy.")
     for campo, nombre in (("lluvias", "LLUVIAS"), ("vias", "VÍAS RESTRINGIDAS"), ("rios", "RÍOS Y QUEBRADAS")):
-        if not d[campo]:
+        if not d[campo] and not d.get("origen_observatorio"):
             print(f"  Aviso: la sección {nombre} quedó vacía. Revisa que el mensaje la traiga.")
     if not d["numero"]:
         d["numero"] = siguiente_numero(a.salida)

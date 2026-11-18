@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-17 (Observatorio)"
+VERSION_OBS = "2026-11-18 (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -41,7 +41,8 @@ NO_CONFIRMADO = re.compile(r"pendiente|por confirmar|sin confirmar|por corrobora
 NO_HECHO = re.compile(r"nota de prensa|prep[aá]rate|recomienda|recomendaciones|campa[ñn]a|simulacro|papa\b|le[oó]n xiv|"
                       r"visita|#cuidatupiel|conoce c[oó]mo|infograf", re.I)
 PRONOSTICO = re.compile(r"^\s*se prev[eé]n?|persistir[aá]n|contin[uú]an? las lluvias|\(\d{1,2}:\d{2} a \d{1,2}:\d{2} ?h\)|"
-                        r"toma tus precauciones|pr[oó]ximas \d* ?horas|#pron[oó]stico|#aviso\b|se estima|podr[ií]an? alcanzar", re.I)
+                        r"toma tus precauciones|aviso (de corto plazo|n[°º.]|especial)|contin[uú]ar[aá]n|se esperan?\b|"
+                        r"pr[oó]ximas \d* ?horas|#pron[oó]stico|#aviso\b|se estima|podr[ií]an? alcanzar", re.I)
 OBSERVADO = re.compile(r"\b(registr[oóa]\w*|alcanz[oó]|super[oó]|superando|ocurri[oó]|ocurrieron|activ[oó]|"
                        r"report[oó]|se produjo|provoc[oó]|desbord)", re.I)
 TEMPERATURA = re.compile(r"°\s*c|temperatura|calor|radiaci[oó]n", re.I)
@@ -54,7 +55,7 @@ SECCION_DE = [  # prioridad: el primer patrón que calce decide la sección
                         re.I)),
     ("lluvias", re.compile(r"lluvi|precipitaci|acumul|\bmm\b|tormenta|chubasco|granizo|nevada", re.I)),
 ]
-MAX_POR_SECCION = 5
+MAX_POR_SECCION = 3          # las más recientes; así el estatus entra en una diapositiva con letra legible
 MINUSCULA = {"huaico", "huaicos", "lluvias", "lluvia", "clima", "tiempo", "deslizamiento", "inundacion"}
 META = {"ahora", "minam", "senamhi", "eldato", "clima", "pronostico", "pronóstico", "aviso", "perúresponde",
         "peruresponde", "preparadosantelluviasintensas", "preparadosanteelfen", "atención", "atencion", "coen"}
@@ -93,18 +94,24 @@ def _hashtag(m):
     return palabra.lower() if palabra.lower() in MINUSCULA else palabra
 
 
+MENCIONES = {"@proviasnac_peru": "Provías Nacional", "@mtc_gobperu": "el MTC", "@coenperu": "el COEN",
+              "@indeciperu": "INDECI", "@senamhiperu": "el SENAMHI", "@anaperu": "la ANA"}
+
+
 def limpiar_post(texto):
     t = re.sub(r"https?://\S+", " ", texto)
     t = re.sub(r"[\U0001F000-\U0001FFFF☀-➿⬀-⯿️‍]", " ", t)
     t = re.sub(r"#(\w+)", _hashtag, t)
-    t = re.sub(r"@\w+", "", t)
+    t = re.sub(r"@\w+", lambda m: MENCIONES.get(m.group(0).lower(), ""), t)
+    t = re.sub(r"\b(a trav[eé]s de|de la|del|de)\s*([,.;])", r"\2", t)          # "a través de , retiró" -> sin hueco
+    t = re.sub(r"^\s*[¡!][^!]{0,140}!\s*", "", t)                               # titular "¡Habilitamos …!" fuera
     t = re.sub(r"\s*(per[uú] ?responde\s*)?ante el fen[oó]meno el ni[ñn]o\.?\s*$", "", t, flags=re.I)   # cola de hashtags
     t = re.sub(r"\s+", " ", t).strip(" |:-–")
     t = re.sub(r"^(\|\s*)+", "", t).strip()
     return t
 
 
-def recortar(texto, maximo=260):
+def recortar(texto, maximo=210):
     """Hasta la última oración completa (las publicaciones llegan cortadas) y sin pasar de 'maximo'."""
     t = texto.strip()
     # fin de oración: un punto que no cierra una abreviatura de una letra ("C. P.") y va seguido de espacio
@@ -114,7 +121,11 @@ def recortar(texto, maximo=260):
         t = t[:ok[-1]] if ok else t.rstrip(",;: ") + "."
     if len(t) > maximo:
         ok = [f for f in fines if 60 < f <= maximo]
-        t = t[:ok[-1]] if ok else t[:maximo].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+        if ok:
+            t = t[:ok[-1]]
+        else:                                   # sin fin de oración a mano: se corta en la última coma
+            coma = t.rfind(", ", 80, maximo)
+            t = (t[:coma] + ".") if coma > 0 else t[:maximo].rsplit(" ", 1)[0].rstrip(",;:") + "…"
     return t[:1].upper() + t[1:]
 
 
@@ -172,6 +183,11 @@ def hechos_oficiales(snap, desde, hasta):
             continue
         lugar, cuerpo = etiqueta(texto, x.get("departamentos") or [])
         cuerpo = quitar_previsiones(cuerpo)
+        # Sin lugar, o un texto que continúa otra publicación ("Por otro lado…", "Asimismo…"): no se entiende solo
+        if not lugar or re.match(r"^(por otro lado|asimismo|adem[aá]s|tambi[eé]n|en tanto|mientras)\b", cuerpo, re.I) \
+                or not OBSERVADO.search(cuerpo) and seccion == "lluvias":
+            descartes["no es un hecho"] += 1
+            continue
         deps = {base._sin_tildes(x_) for x_ in (x.get("departamentos") or [])} or {base._sin_tildes(lugar)}
         secciones[seccion].append({"t": t, "cuenta": CUENTAS_OFICIALES[cuenta], "lugar": lugar, "deps": deps,
                                    "texto": recortar(cuerpo)})

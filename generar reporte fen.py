@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-17b (leyenda solo de niveles)"
+VERSION = "2026-11-18 (nunca texto tapado)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1721,6 +1721,16 @@ def construir(d, salida_pptx, borrador=False):
             break
     (m, secs, bloques, ESP, _) = mejor
     (cabe, *_), LW, RW, fs, fs2 = m
+    if not cabe:
+        # Último recurso: nunca dejar texto tapado. Se quita la línea más antigua (la última) de la sección
+        # más larga y se vuelve a armar la diapositiva.
+        largas = [k for k in ("lluvias", "vias", "rios", "huaicos", "p1", "medidas", "recomendaciones")
+                  if len(d.get(k) or []) > 1]
+        if largas:
+            k = max(largas, key=lambda k_: (len(d[k_]), sum(len(x) for x in d[k_])))
+            quitado = d[k].pop()
+            print(f"  Aviso: no entraba todo en la diapositiva; se omitió de «{k}»: {quitado[:70]}…")
+            return construir(d, salida_pptx, borrador)
     RX = LX + LW + GAP
 
     # ---- Tarjetas blancas con encabezado tenue

@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-18 (Observatorio)"
+VERSION_OBS = "2026-11-18b (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -107,6 +107,7 @@ def limpiar_post(texto):
     t = re.sub(r"^\s*[¡!][^!]{0,140}!\s*", "", t)                               # titular "¡Habilitamos …!" fuera
     t = re.sub(r"\s*(per[uú] ?responde\s*)?ante el fen[oó]meno el ni[ñn]o\.?\s*$", "", t, flags=re.I)   # cola de hashtags
     t = re.sub(r"\s+", " ", t).strip(" |:-–")
+    t = re.sub(r"\s+([,.;:])", r"\1", t)                                         # "Nacional , retiró" -> "Nacional, retiró"
     t = re.sub(r"^(\|\s*)+", "", t).strip()
     return t
 
@@ -182,6 +183,14 @@ def hechos_oficiales(snap, desde, hasta):
             descartes["no es un hecho"] += 1
             continue
         lugar, cuerpo = etiqueta(texto, x.get("departamentos") or [])
+        # "hoy" de la publicación -> su fecha ("La tarde de hoy" del 17/11 -> "La tarde del 17/11")
+        cuerpo = re.sub(r"\b(la (?:tarde|noche|mañana|madrugada)) de hoy\b", lambda m_: f"{m_.group(1)} del {t:%d/%m}",
+                        cuerpo, flags=re.I)
+        cuerpo = re.sub(r"^hoy,?\s*", f"El {t:%d/%m}, ", cuerpo, flags=re.I)
+        cuerpo = re.sub(r"\bhoy\b", f"el {t:%d/%m}", cuerpo, flags=re.I)
+        if lugar:                                       # "Piura: En Piura se registraron…" -> "Piura: Se registraron…"
+            cuerpo = re.sub(r"^en " + re.escape(lugar) + r",?\s+", "", cuerpo, flags=re.I)
+        cuerpo = cuerpo[:1].upper() + cuerpo[1:]
         cuerpo = quitar_previsiones(cuerpo)
         # Sin lugar, o un texto que continúa otra publicación ("Por otro lado…", "Asimismo…"): no se entiende solo
         if not lugar or re.match(r"^(por otro lado|asimismo|adem[aá]s|tambi[eé]n|en tanto|mientras)\b", cuerpo, re.I) \
@@ -245,13 +254,13 @@ def pronostico(snap, dia, desde):
         etiquetas = list(re.finditer(r"\b(Costa|Sierra|Selva)\s*:\s*(.+?)(?=\s*\b(?:Costa|Sierra|Selva)\s*:|$)", txt, re.I))
         if etiquetas:
             for m in etiquetas:
-                por_region.setdefault(m.group(1).capitalize(), recortar(m.group(2).strip(), 160))
+                por_region.setdefault(m.group(1).capitalize(), recortar(m.group(2).strip(), 200))
         else:                                   # texto libre: cada oración va a su región
             txt = re.sub(r"^.*?\|\s*", "", txt)
             for f in re.split(r"(?<=\.)\s+", txt):
                 if len(f) > 20:
                     r_ = region_de(f)
-                    por_region[r_] = (por_region.get(r_, "") + " " + recortar(limpia(f), 160)).strip()
+                    por_region[r_] = (por_region.get(r_, "") + " " + recortar(limpia(f), 200)).strip()
     filas = [r for r in (snap.get("sources") or {}).get("senamhi", {}).get("rows", [])
              if "lluvias" in (r.get("eventIds") or []) and r.get("jornada") == dia]
     if filas:
@@ -263,7 +272,7 @@ def pronostico(snap, dia, desde):
         for f in re.split(r"(?<=\.)\s+", desc):           # lo que el post no cubre, del aviso oficial
             reg = region_de(f)
             if reg not in por_region and re.search(reg, f, re.I):
-                por_region[reg] = recortar(limpia(f), 170)
+                por_region[reg] = recortar(limpia(f), 200)
     for reg in ("Costa", "Sierra", "Selva"):
         if reg in por_region:
             items.append(f"{reg}: {por_region[reg]}")

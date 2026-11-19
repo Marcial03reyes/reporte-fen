@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-18b (Observatorio)"
+VERSION_OBS = "2026-11-19 (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -51,9 +51,12 @@ SECCION_DE = [  # prioridad: el primer patrón que calce decide la sección
     ("huaicos", re.compile(r"huaico|deslizamiento|derrumbe|movimiento en masa|ca[ií]da de rocas", re.I)),
     ("rios", re.compile(r"quebrada|\br[ií]os?\b|caudal|desborde|inundaci|crecida", re.I)),
     ("vias", re.compile(r"(\bv[ií]as?\b|carretera|tr[aá]nsito|puente|tramo).{0,80}(interrump|restring|bloque|cerrad|"
-                        r"intransitable|afectad)|(interrump|restring|bloque|cerrad).{0,60}(\bv[ií]as?\b|carretera|tr[aá]nsito)",
+                        r"intransitable)|(interrump|restring|bloque|cerrad).{0,60}(\bv[ií]as?\b|carretera|tr[aá]nsito)",
                         re.I)),
-    ("lluvias", re.compile(r"lluvi|precipitaci|acumul|\bmm\b|tormenta|chubasco|granizo|nevada", re.I)),
+    ("lluvias", re.compile(r"(?<!a consecuencia de las )(?<!a causa de las )(?<!tras las )(?<!tras )"
+                           r"(lluvi|precipitaci|acumul|\bmm\b|tormenta|chubasco|granizo|nevada)", re.I)),
+    # daños por lluvias sin quebrada/huaico/vía cortada (viviendas, infraestructura): "otras afectaciones"
+    ("rios", re.compile(r"da[ñn]os|afect[oóa]|damnificad|colaps|viviendas", re.I)),
 ]
 MAX_POR_SECCION = 3          # las más recientes; así el estatus entra en una diapositiva con letra legible
 MINUSCULA = {"huaico", "huaicos", "lluvias", "lluvia", "clima", "tiempo", "deslizamiento", "inundacion"}
@@ -198,8 +201,14 @@ def hechos_oficiales(snap, desde, hasta):
             descartes["no es un hecho"] += 1
             continue
         deps = {base._sin_tildes(x_) for x_ in (x.get("departamentos") or [])} or {base._sin_tildes(lugar)}
+        texto_final = recortar(cuerpo)
+        if seccion == "vias":                           # la oración que dice que la vía está cortada no se pierde
+            clave_v = next((f for f in re.split(r"(?<=[.!])\s+", cuerpo)
+                            if re.search(r"interrump|restring|bloque|cerrad|intransitable", f, re.I)), "")
+            if clave_v and clave_v.rstrip(".") not in texto_final:
+                texto_final = recortar(cuerpo, 150).rstrip(".…") + ". " + recortar(clave_v, 120)
         secciones[seccion].append({"t": t, "cuenta": CUENTAS_OFICIALES[cuenta], "lugar": lugar, "deps": deps,
-                                   "texto": recortar(cuerpo)})
+                                   "texto": texto_final})
     # Una quebrada o huaico que corta una vía también va (corto) a Vías restringidas
     for k in ("rios", "huaicos"):
         for h in list(secciones[k]):
@@ -235,7 +244,7 @@ def pronostico(snap, dia, desde):
     items = []
     posts = [x for x in (snap.get("datasets") or {}).get("senales_x") or []
              if (x.get("cuenta") or "").lower() == "@senamhiperu" and re.search(r"#pron[oó]stico", x.get("resumen") or "", re.I)
-             and (a_lima(x.get("publicado")) or desde) >= desde - timedelta(hours=12)]
+             and (a_lima(x.get("publicado")) or desde) >= desde + timedelta(hours=18)]   # solo el publicado el día del reporte
     por_region = {}
 
     def region_de(frase):

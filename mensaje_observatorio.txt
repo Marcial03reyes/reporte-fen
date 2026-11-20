@@ -13,28 +13,21 @@
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
-📅Fecha: 16/11/2026
-🕕Corte: 09:24 horas
+📅Fecha: 20/11/2026
+🕕Corte: 10:17 horas
 
 * Piura: Sin afectaciones reportadas ambos locales.
 * Chiclayo: Sin afectaciones reportadas.
-* Trujillo: Sin afectaciones reportadas.
+* Trujillo: corte general de energía. El personal se encuentra en remoto, la plataforma de atención continúa operativa y se está instalando el GE.
 * Huancayo: Sin afectaciones reportadas.
 * Arequipa (Yanahuara): Sin afectaciones reportadas.
 * Arequipa (Cayma): Sin afectaciones reportadas.
 * Cusco: Sin afectaciones
 * Edificios Lima: Sin afectaciones reportadas
 
-*Resumen: Provincia y Lima Sin afectaciones reportadas*
-
 # ============================================================
 #  2) (Opcional) Si el Observatorio no trae las zonas del aviso de quebradas, puedes pegar aquí la lista
 #     "Departamentos bajo aviso" del WhatsApp: solo se usa para pintar el mapa, no sale como texto.
-#     Así el departamento sale en Extremo (rojo) por quebradas, como en la versión WhatsApp. Ejemplo:
-#       *Departamentos bajo aviso 24h (hasta las 13h 16/11):*
-#       - *Nivel rojo:* Tumbes y Piura.
-#       - *Nivel naranja:* Áncash, Cajamarca, Huánuco, La Libertad y Lambayeque.
-#       - *Nivel amarillo:* Amazonas, Apurímac, ...
 # ============================================================
 
 
@@ -43,7 +36,7 @@
 # Persona 1 y 2: escribe el nombre cuando cada una confirme por WhatsApp.
 #   Sin las dos confirmaciones no se genera el reporte ni se envía el correo.
 [CONFIRMACIONES]
-NUMERO: 009
+NUMERO: 013
 Persona 1: Paola
 Persona 2: Elizabeth
 

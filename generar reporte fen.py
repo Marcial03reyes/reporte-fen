@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-23 (calor en estatus, PRONÓSTICOS)"
+VERSION = "2026-11-23b (leyenda en dos filas)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1432,24 +1432,32 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         mx = px + pw - 0.15 - mw
         slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.12), Inches(mw), Inches(mh))
         # leyenda de intensidad en el mar, abajo a la izquierda del mapa
-        ley = [[sw("Rojo"), (INTENSIDAD["Rojo"] + "   ", False, P_INK), sw("Naranja"), (INTENSIDAD["Naranja"], False, P_INK)],
-               [sw("Amarillo"), (INTENSIDAD["Amarillo"] + " ", False, P_INK), sw(""), (INTENSIDAD[""], False, P_INK)]]
-        alto_ley = 0.36
+        # Leyenda en dos filas, a la altura de "Fuente": arriba los símbolos (causa), abajo los niveles (color)
         tipos = [t for t in ("lluvias", "quebradas", "calor") if any(t in v for v in causas.values())]
-        x_causa = mx - 0.55                             # símbolos (uno por fila) justo encima de los niveles
-        if tipos:
-            fila = 0.17
-            yl = py + ph - 0.08 - alto_ley - 0.02 - fila * len(tipos)
-            for i_, t in enumerate(tipos):
-                icono(slide, icono_causa(t), x_causa, yl + i_ * fila + 0.02, 0.14)
-                etq_c = "Calor extremo" if (t == "calor" and not modo.startswith("grav")) else ETIQUETA_CAUSA[t]
-                texto(slide, x_causa + 0.18, yl + i_ * fila, 1.0, fila, etq_c, 8, P_INK, nombre="Leyenda causa")
-        if MAPA_CON_CALOR and rz.get("calor"):
-            ley.append([("▨\u00a0", True, RGBColor(*[round(c_ * 0.72) for c_ in FILL_NIVEL["Rojo"]])),
-                        ("Rayas: aviso de calor", False, P_INK)])
-            alto_ley = 0.88
-        texto(slide, mx - 0.55, py + ph - alto_ley - 0.08, 1.75, alto_ley, ley, 8, nombre="Leyenda intensidad")
-        mw += 0.55
+        fs_l, fila, sep = 8, 0.18, 0.08
+        y_niv = py + ph - 0.24
+        y_cau = y_niv - fila
+        x_der = mx + 0.45                               # el bloque termina sobre el mar, a la izquierda del Perú
+        niveles_l = [("Rojo", INTENSIDAD["Rojo"]), ("Naranja", INTENSIDAD["Naranja"]),
+                     ("Amarillo", INTENSIDAD["Amarillo"]), ("", INTENSIDAD[""])]
+        ancho_niv = sum(0.15 + ancho_pt(t_, fs_l) / 72 + sep for _, t_ in niveles_l) - sep
+        causas_l = [(t, "Calor extremo" if (t == "calor" and not modo.startswith("grav")) else ETIQUETA_CAUSA[t])
+                    for t in tipos]
+        ancho_cau = sum(0.18 + ancho_pt(t_, fs_l) / 72 + sep for _, t_ in causas_l) - sep if causas_l else 0
+        x0 = x_der - max(ancho_niv, ancho_cau)
+        x = x0
+        for t, etq_c in causas_l:
+            icono(slide, icono_causa(t), x, y_cau + 0.02, 0.14)
+            w_ = ancho_pt(etq_c, fs_l) / 72 + 0.05
+            texto(slide, x + 0.17, y_cau, w_, fila, etq_c, fs_l, P_INK, nombre="Leyenda causa")
+            x += 0.18 + w_ - 0.05 + sep
+        x = x0
+        for nv, etq_n in niveles_l:
+            w_ = ancho_pt(etq_n, fs_l) / 72 + 0.05
+            texto(slide, x, y_niv, 0.15 + w_, fila, [[sw(nv), (etq_n, False, P_INK)]], fs_l, nombre="Leyenda nivel")
+            x += 0.15 + w_ - 0.05 + sep
+        x_ley = x0
+        mw += 0.4
     lx = px + 0.2
     la = pw - 0.35 - mw - 0.25
     tit_p, fs_tp = "IMPACTO Y EXPOSICIÓN · PACÍFICO SEGUROS", 11.5

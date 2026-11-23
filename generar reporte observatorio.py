@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-19 (Observatorio)"
+VERSION_OBS = "2026-11-23 (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -60,7 +60,7 @@ SECCION_DE = [  # prioridad: el primer patrón que calce decide la sección
 ]
 MAX_POR_SECCION = 3          # las más recientes; así el estatus entra en una diapositiva con letra legible
 MINUSCULA = {"huaico", "huaicos", "lluvias", "lluvia", "clima", "tiempo", "deslizamiento", "inundacion"}
-META = {"ahora", "minam", "senamhi", "eldato", "clima", "pronostico", "pronóstico", "aviso", "perúresponde",
+META = {"radar", "ahora", "minam", "senamhi", "eldato", "clima", "pronostico", "pronóstico", "aviso", "perúresponde",
         "peruresponde", "preparadosantelluviasintensas", "preparadosanteelfen", "atención", "atencion", "coen"}
 
 
@@ -201,6 +201,10 @@ def hechos_oficiales(snap, desde, hasta):
             descartes["no es un hecho"] += 1
             continue
         deps = {base._sin_tildes(x_) for x_ in (x.get("departamentos") or [])} or {base._sin_tildes(lugar)}
+        if seccion == "rios":       # los acumulados de lluvia ya van en Lluvias: no se repiten aquí
+            frs = [f for f in re.split(r"(?<=[.!])\s+", cuerpo)
+                   if not (re.search(r"\bmm\b", f) or re.match(r"^lluvias? contin", f, re.I))]
+            cuerpo = " ".join(frs) or cuerpo
         texto_final = recortar(cuerpo)
         if seccion == "vias":                           # la oración que dice que la vía está cortada no se pierde
             clave_v = next((f for f in re.split(r"(?<=[.!])\s+", cuerpo)
@@ -306,7 +310,22 @@ def pronostico(snap, dia, desde):
             if lista:
                 partes.append(f"{base.INTENSIDAD[nv].lower()} ({nv.lower()}) en " + base._unir_y(lista))
         num = " y ".join(str(a_) for a_ in sorted(a_ for a_ in avisos if a_))
-        items.append(f"{nombre}: nivel " + "; ".join(partes) + f" (aviso{'s' if len(avisos) > 1 else ''} SENAMHI {num}).")
+        extra = ""
+        if ev == "calor":
+            # Temperatura máxima prevista por aviso (como el mensaje "Calor y radiación UV" que llega por WhatsApp)
+            maximas = []
+            for a_ in sorted(a_ for a_ in avisos if a_):
+                fila = next((r for r in filas_dia if r.get("numero_aviso") == a_), None)
+                if not fila:
+                    continue
+                temps = [int(t_) for t_ in re.findall(r"(\d{2})\s*°\s*C", fila.get("evento") or "")]
+                zona = re.search(r"\bEN LA ([A-ZÁÉÍÓÚÑ ]+?)(?:\s*\(|\.|$)", (fila.get("evento") or "").split(".")[0])
+                if temps and zona:
+                    z_ = re.sub(r"\s+y en la\s+", " y ", zona.group(1).lower().strip())
+                    maximas.append(f"{max(temps)} °C en la {z_}")
+            if maximas:
+                extra = " Máximas previstas de hasta " + base._unir_y(maximas) + "."
+        items.append(f"{nombre}: nivel " + "; ".join(partes) + f" (aviso{'s' if len(avisos) > 1 else ''} SENAMHI {num})." + extra)
     qn = (snap.get("sources") or {}).get("indeci", {}).get("quebradaNotice") or {}
     fin_q = a_lima(qn.get("fin"))
     if qn.get("number") and fin_q and fin_q.strftime("%Y-%m-%d") >= dia:

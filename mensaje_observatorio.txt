@@ -13,8 +13,8 @@
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
-📅Fecha: 20/11/2026
-🕕Corte: 10:17 horas
+📅Fecha: 23/11/2026
+🕕Corte: 08:44 horas
 
 * Piura: Sin afectaciones reportadas ambos locales.
 * Chiclayo: Sin afectaciones reportadas.
@@ -36,7 +36,7 @@
 # Persona 1 y 2: escribe el nombre cuando cada una confirme por WhatsApp.
 #   Sin las dos confirmaciones no se genera el reporte ni se envía el correo.
 [CONFIRMACIONES]
-NUMERO: 013
+NUMERO: 014
 Persona 1: Paola
 Persona 2: Elizabeth
 

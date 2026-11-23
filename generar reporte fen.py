@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-18 (nunca texto tapado)"
+VERSION = "2026-11-23 (calor en estatus, PRONÓSTICOS)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -90,7 +90,7 @@ SECCIONES = {
 
 
 def _vacio():
-    return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [], "huaicos": [],
+    return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [], "huaicos": [], "calor": [],
             "aviso_dptos": {}, "aviso_dptos_titulo": "",
             "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
             "conf": [], "sedes": "", "colab": "", "pie": [], "medidas": [], "recomendaciones": [], "vigencia": "",
@@ -283,6 +283,8 @@ def _tipo_seccion(titulo):
         return "medidas"
     if hay(r"impacto|credicorp|infraestructura|colaborador|agencia"):
         return "ignorar"            # el impacto lo completa Pacífico
+    if hay(r"calor|radiaci[oó]n|temperatura"):
+        return "calor"              # avisos de calor / radiación UV: sección propia del estatus
     if hay(r"bajo aviso|aviso 24|departamentos? (bajo|con) aviso|niveles? de aviso"):
         return "aviso_dptos"        # lista oficial de departamentos por nivel: va al mapa, no como texto
     if hay(r"huaicos?|deslizamientos?|derrumbes?|movimientos? en masa"):
@@ -637,6 +639,17 @@ def _rio(dr, c, s):
             dr.arc((x0, s*y - s*.08, x0 + s*.28, s*y + s*.08), 180, 360, fill=c, width=w)
     dr.arc((s*.30, s*.10, s*.70, s*.42), 200, 340, fill=c, width=w)
     dr.ellipse((s*.46, s*.20, s*.56, s*.30), fill=c)
+
+
+def _sol(dr, c, s):
+    """Sol: disco y rayos."""
+    import math as _m
+    w = s // 18
+    dr.ellipse((s*.33, s*.33, s*.67, s*.67), outline=c, width=w)
+    for i in range(8):
+        a = i * _m.pi / 4
+        dr.line((s*.5 + _m.cos(a)*s*.25, s*.5 + _m.sin(a)*s*.25, s*.5 + _m.cos(a)*s*.40, s*.5 + _m.sin(a)*s*.40),
+                fill=c, width=w)
 
 
 def _huaico(dr, c, s):
@@ -1193,7 +1206,7 @@ def ruta_geojson():
 
 
 COLOR_CAUSA = {"lluvias": (45, 125, 190), "quebradas": (120, 90, 60), "calor": (240, 170, 50)}
-ETIQUETA_CAUSA = {"lluvias": "Lluvias", "quebradas": "Quebradas", "calor": "Calor"}
+ETIQUETA_CAUSA = {"lluvias": "Lluvia", "quebradas": "Quebrada", "calor": "Calor"}
 
 
 def dibujar_causa(dr, tipo, cx, cy, s):
@@ -1423,13 +1436,14 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
                [sw("Amarillo"), (INTENSIDAD["Amarillo"] + " ", False, P_INK), sw(""), (INTENSIDAD[""], False, P_INK)]]
         alto_ley = 0.36
         tipos = [t for t in ("lluvias", "quebradas", "calor") if any(t in v for v in causas.values())]
-        LEYENDA_CAUSAS = False                          # solo la leyenda de niveles (Extremo, Alto, …)
-        if tipos and LEYENDA_CAUSAS:                    # leyenda de símbolos (causa), encima de la de colores
-            yl = py + ph - 0.08 - alto_ley - 0.17 * len(tipos) - 0.04
+        x_causa = mx - 0.55                             # símbolos (uno por fila) justo encima de los niveles
+        if tipos:
+            fila = 0.17
+            yl = py + ph - 0.08 - alto_ley - 0.02 - fila * len(tipos)
             for i_, t in enumerate(tipos):
-                icono(slide, icono_causa(t), mx - 0.55, yl + i_ * 0.17 + 0.015, 0.14)
+                icono(slide, icono_causa(t), x_causa, yl + i_ * fila + 0.02, 0.14)
                 etq_c = "Calor extremo" if (t == "calor" and not modo.startswith("grav")) else ETIQUETA_CAUSA[t]
-                texto(slide, mx - 0.37, yl + i_ * 0.17, 1.3, 0.17, etq_c, 8, P_INK, nombre="Leyenda causa")
+                texto(slide, x_causa + 0.18, yl + i_ * fila, 1.0, fila, etq_c, 8, P_INK, nombre="Leyenda causa")
         if MAPA_CON_CALOR and rz.get("calor"):
             ley.append([("▨\u00a0", True, RGBColor(*[round(c_ * 0.72) for c_ in FILL_NIVEL["Rojo"]])),
                         ("Rayas: aviso de calor", False, P_INK)])
@@ -1620,6 +1634,11 @@ def construir(d, salida_pptx, borrador=False):
         h_ = ("HUAICOS Y DESLIZAMIENTOS", _huaico, G_AMBER, d["huaicos"])
         extras.append((h_, (h_[0], WARN_FG, h_[3])))
     secs_base, bloques_base = secs, bloques
+    if d.get("calor"):                 # siempre en el Estatus del día, al final (después de ríos y huaicos)
+        c_ = ("CALOR Y RADIACIÓN UV", _sol, (230, 120, 20), d["calor"])
+        secs_fin = [c_]
+    else:
+        secs_fin = []
     if d["medidas"]:
         extras.append((("MEDIDAS", _megafono, G_PURPLE, d["medidas"]), ("MEDIDAS", P_PURPLE, d["medidas"])))
     if d.get("recomendaciones"):
@@ -1698,7 +1717,7 @@ def construir(d, salida_pptx, borrador=False):
     import itertools
     opciones = []
     for lados in itertools.product(("izq", "der"), repeat=len(extras)):
-        secs_o = secs_base + [e[0] for e, lado in zip(extras, lados) if lado == "izq"]
+        secs_o = secs_base + [e[0] for e, lado in zip(extras, lados) if lado == "izq"] + secs_fin
         bloques_o = bloques_base + [e[1] for e, lado in zip(extras, lados) if lado == "der"]
         opciones.append((secs_o, bloques_o, lados.count("der")))
     # Con el mapa, si la columna izquierda no entra, el panel de impacto se hace más bajo.
@@ -1711,6 +1730,7 @@ def construir(d, salida_pptx, borrador=False):
         for ESP in ESPACIADOS:
             for secs, bloques, movidas in opciones:
                 m = elegir(Y1_COMPACTO)
+                # pasar una sección a la derecha solo si hace falta o si la letra gana al menos 1 pt
                 # pasar una sección a la derecha solo si hace falta o si la letra gana al menos 1 pt
                 clave = (m[0][0], m[0][1] - (0.9 * movidas if m[0][0] else 0)) + tuple(m[0][2:])
                 if mejor is None or clave > mejor[4]:
@@ -1735,8 +1755,8 @@ def construir(d, salida_pptx, borrador=False):
 
     # ---- Tarjetas blancas con encabezado tenue
     for x, w, titulo, nom, color in ((LX, LW, "ESTATUS DEL DÍA", "Tarjeta estatus", P_BLUE_DK),
-                                     (RX, RW, "PRONÓSTICO DE LLUVIAS" if len(bloques) == len(bloques_base)
-                                      else "PRONÓSTICO Y AFECTACIONES", "Tarjeta pronostico", P_PINK)):
+                                     (RX, RW, "PRONÓSTICOS" if len(bloques) == len(bloques_base)
+                                      else "PRONÓSTICOS Y AFECTACIONES", "Tarjeta pronostico", P_PINK)):
         c = caja(slide, x, TOP, w, BOTTOM - TOP, WHITE, P_LINE, MSO_SHAPE.ROUNDED_RECTANGLE, nom)
         c.adjustments[0] = 0.035
         sombra_suave(c)

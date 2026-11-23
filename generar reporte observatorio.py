@@ -242,6 +242,40 @@ def hechos_oficiales(snap, desde, hasta):
     return secciones, descartes
 
 
+def calor_uv(snap, dia):
+    """Sección 'Calor y radiación UV': un ítem por aviso de calor del SENAMHI vigente hoy, con las máximas
+    previstas y dónde está en nivel extremo (rojo); si no llega a rojo, dónde está en alto (naranja)."""
+    filas = [r for r in (snap.get("sources") or {}).get("senamhi", {}).get("rows", [])
+             if r.get("jornada") == dia and not r.get("solo_contexto") and "calor" in (r.get("eventIds") or [])
+             and r.get("nivel") in base.NIVEL_ORDEN]
+    items = []
+    for num in sorted({r.get("numero_aviso") for r in filas if r.get("numero_aviso")}, reverse=True):
+        fa = [r for r in filas if r.get("numero_aviso") == num]
+        ev = fa[0].get("evento") or ""
+        zona = re.search(r"\bEN LA ([A-ZÁÉÍÓÚÑ ]+?)(?:\s*\(|\.|$)", ev.split(".")[0])
+        zona = re.sub(r"\s+y en la\s+", " y ", zona.group(1).lower().strip()) if zona else ""
+        temps = [int(t_) for t_ in re.findall(r"(\d{2})\s*°\s*C", ev)]
+        top = max((base.NIVEL_ORDEN[r["nivel"]] for r in fa), default=0)
+        nv = next(k for k, v in base.NIVEL_ORDEN.items() if v == top)
+        deps = {}
+        for r in fa:
+            if r["nivel"] == nv:
+                for d_ in r.get("departamentos") or []:
+                    deps.setdefault(d_, set()).update(p_.title() for p_ in r.get("provincias") or [])
+        nombres = sorted(deps, key=base._sin_tildes)
+        if len(nombres) <= 2:          # pocos departamentos: se nombran las provincias, como el aviso
+            lugares = "; ".join(f"{d_} ({base._unir_y(sorted(deps[d_]))})" for d_ in nombres)
+        else:
+            lugares = base._unir_y(nombres)
+        fin = max((a_lima(r.get("fin_aviso")) for r in fa if a_lima(r.get("fin_aviso"))), default=None)
+        txt = (f"{zona.capitalize()}: " if zona else "") + \
+              (f"máximas de hasta {max(temps)} °C. " if temps else "") + \
+              f"Nivel {base.INTENSIDAD[nv].lower()} ({nv.lower()}) en {lugares}" + \
+              (f" (aviso SENAMHI {num}, hasta {fin:%d/%m})." if fin else f" (aviso SENAMHI {num}).")
+        items.append(txt[:1].upper() + txt[1:])
+    return items
+
+
 def pronostico(snap, dia, desde):
     """Costa / Sierra / Selva del último pronóstico de SENAMHI en X; si no hay, el aviso de lluvias del día.
     Más los otros avisos vigentes (calor, viento, oleaje)."""
@@ -294,7 +328,7 @@ def pronostico(snap, dia, desde):
     # Departamentos por nivel oficial, por peligro (como "Pronóstico: nivel … hoy" de la página)
     filas_dia = [r for r in (snap.get("sources") or {}).get("senamhi", {}).get("rows", [])
                  if r.get("jornada") == dia and not r.get("solo_contexto") and r.get("nivel") in base.NIVEL_ORDEN]
-    for ev, nombre in (("lluvias", "Lluvias"), ("calor", "Calor")):
+    for ev, nombre in (("lluvias", "Lluvias"),):        # el calor va como sección propia del estatus
         dep, avisos = {}, set()
         for r in filas_dia:
             if ev in (r.get("eventIds") or []):
@@ -378,6 +412,7 @@ def leer_datos_observatorio(ruta):
     d["origen_observatorio"] = True
     d["p1_titulo"] = "HOY"
     d["p1"] = pronostico(snap, dia, desde)
+    d["calor"] = calor_uv(snap, dia)
     d["nota"] = d.get("nota") or "Se mantiene el monitoreo."
     base.sintetizar(d)
 

@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-23b (leyenda en dos filas)"
+VERSION = "2026-11-24 (siniestros FEN)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -921,6 +921,104 @@ def usar_lista_wsp(d, rz):
               + (" …" if len(dif) > 6 else "") + ". El mapa usa el Observatorio.")
 
 
+def cargar_siniestros(carpetas):
+    """Lee el Excel de siniestros FEN (siniestros.xlsx o data.xlsx) y resume por línea y por departamento.
+    Columnas usadas: Linea, Estado, MontoDirectoUSD, NombreDpto, Fec.Registro. Devuelve dict o None."""
+    ruta = next((os.path.join(c, n) for c in carpetas for n in ("siniestros.xlsx", "data.xlsx")
+                 if os.path.exists(os.path.join(c, n))), None)
+    if not ruta:
+        return None
+    import warnings
+    try:
+        import openpyxl
+    except ImportError:
+        print("  [!] Para leer el Excel de siniestros instala openpyxl:  pip install openpyxl")
+        return None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        wb = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
+    filas = list(wb.worksheets[0].iter_rows(values_only=True))
+    if not filas:
+        return None
+    cab = [str(c or "").strip().lower() for c in filas[0]]
+
+    def col(*nombres):
+        return next((i for i, c in enumerate(cab) if c in nombres), None)
+    i_lin, i_est, i_mon = col("linea", "línea"), col("estado"), col("montodirectousd", "monto directo usd")
+    i_dep, i_fec = col("nombredpto", "departamento"), col("fec.registro", "fecha registro", "fec registro")
+    if i_lin is None or i_mon is None:
+        print(f"  [!] {os.path.basename(ruta)}: no encuentro las columnas Linea / MontoDirectoUSD.")
+        return None
+    lineas, deps, fechas, total = {}, {}, [], [0, 0.0, 0]
+    for f in filas[1:]:
+        if not f or len(f) <= max(i_lin, i_mon) or not f[i_lin]:
+            continue                                  # fila de totales o de filtros
+        lin = str(f[i_lin]).strip().capitalize()
+        monto = float(f[i_mon]) if isinstance(f[i_mon], (int, float)) else 0.0
+        abierto = i_est is not None and str(f[i_est] or "").strip().lower() == "abierto"
+        x = lineas.setdefault(lin, [0, 0.0, 0])
+        x[0] += 1; x[1] += monto; x[2] += abierto
+        total[0] += 1; total[1] += monto; total[2] += abierto
+        if i_dep is not None and f[i_dep]:
+            dep = str(f[i_dep]).strip().title().replace("San Martin", "San Martín").replace("Junin", "Junín") \
+                .replace("Ancash", "Áncash").replace("Huanuco", "Huánuco").replace("Apurimac", "Apurímac")
+            y_ = deps.setdefault(dep, [0, 0.0])
+            y_[0] += 1; y_[1] += monto
+        if i_fec is not None and hasattr(f[i_fec], "strftime"):
+            fechas.append(f[i_fec])
+    if not total[0]:
+        return None
+    return {"archivo": os.path.basename(ruta), "lineas": lineas, "deps": deps, "total": total,
+            "desde": min(fechas) if fechas else None, "hasta": max(fechas) if fechas else None}
+
+
+def usd_corto(v):
+    return f"USD {v / 1e6:.1f} M" if v >= 1e6 else (f"USD {v / 1e3:.1f} mil" if v >= 1e3 else f"USD {v:,.0f}")
+
+
+def dibujar_siniestros(slide, sn, x, y, w, h):
+    """Tercera tarjeta 'Siniestros FEN': total en el encabezado, una ficha por línea y los departamentos con más casos."""
+    head = 0.42
+    c = caja(slide, x, y, w, h, WHITE, P_LINE, MSO_SHAPE.ROUNDED_RECTANGLE, "Tarjeta siniestros")
+    c.adjustments[0] = 0.08
+    sombra_suave(c)
+    hb = caja(slide, x, y, w, head, P_TINT, None, MSO_SHAPE.ROUND_2_SAME_RECTANGLE, "Tarjeta siniestros encabezado")
+    hb.adjustments[0] = 0.32
+    hb.adjustments[1] = 0.0
+    texto(slide, x + 0.3, y, w * 0.5, head, "SINIESTROS FEN", 14, P_BLUE_DK, "xb", anchor=MSO_ANCHOR.MIDDLE)
+    t = sn["total"]
+    texto(slide, x + w * 0.45, y, w * 0.55 - 0.3, head,
+          [[("Total ", False, P_GREY), (f"{t[0]}", True, P_INK), ("  ·  ", False, P_GREY), (usd_corto(t[1]), True, P_INK)]],
+          10, align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE, nombre="Siniestros total")
+    orden = ["Vivienda", "Comerciales", "Negocios"]
+    lins = sorted(sn["lineas"].items(), key=lambda kv: (orden.index(kv[0]) if kv[0] in orden else 9, -kv[1][0]))[:4]
+    colores = [G_BLUE, G_PURPLE, G_PINK, G_AMBER]
+    n = len(lins)
+    gap = 0.12
+    x0 = x + 0.24
+    tw = (w - 0.48 - gap * (n - 1)) / n
+    ty, th = y + head + 0.1, h - head - 0.1 - 0.32
+    for i_, (lin, (cant, monto, abiertos)) in enumerate(lins):
+        tx = x0 + i_ * (tw + gap)
+        col = RGBColor(*colores[i_])
+        t_ = caja(slide, tx, ty, tw, th, P_BG, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Siniestros " + lin)
+        t_.adjustments[0] = 0.1
+        caja(slide, tx + 0.02, ty + 0.08, 0.05, th - 0.16, col, None, MSO_SHAPE.RECTANGLE, "Barra " + lin)
+        texto(slide, tx + 0.15, ty + 0.06, tw - 0.2, 0.18, lin.upper(), 8, col, "xb")
+        fs_n = 16
+        wn = ancho_pt(str(cant), fs_n, True) / 72 + 0.07
+        texto(slide, tx + 0.15, ty + 0.22, wn, 0.28, str(cant), fs_n, P_INK, "xb", anchor=MSO_ANCHOR.MIDDLE)
+        texto(slide, tx + 0.15 + wn, ty + 0.22, tw - 0.2 - wn, 0.28,
+              [[("siniestros", False, P_GREY)], [(f"{abiertos} abiertos", False, P_GREY)]], 7.5,
+              anchor=MSO_ANCHOR.MIDDLE)
+        texto(slide, tx + 0.15, ty + th - 0.22, tw - 0.2, 0.18, usd_corto(monto), 8.5, P_INK, True)
+    top = sorted(sn["deps"].items(), key=lambda kv: (-kv[1][0], -kv[1][1]))[:4]
+    if top:
+        texto(slide, x0, y + h - 0.28, w - 0.48, 0.2,
+              [[("Más siniestros: ", True, P_INK), ("  ·  ".join(f"{d_} {c_[0]}" for d_, c_ in top), False, P_INK)]],
+              8, nombre="Siniestros departamentos")
+
+
 def fin_local(iso):
     """Fecha (AAAA-MM-DD, hora de Lima) en que termina un aviso; '' si no se sabe."""
     from datetime import timedelta, timezone
@@ -1248,6 +1346,11 @@ def dibujar_causa(dr, tipo, cx, cy, s):
 
 
 def icono_causa(tipo, lado=96):
+    if tipo == "siniestro":
+        img = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
+        ImageDraw.Draw(img).ellipse((6, 6, lado - 6, lado - 6), fill=(10, 95, 168, 255))
+        buf = io.BytesIO(); img.save(buf, "PNG"); buf.seek(0)
+        return buf
     img = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
     dibujar_causa(ImageDraw.Draw(img), tipo, lado / 2, lado / 2, lado - 4)
     buf = io.BytesIO()
@@ -1256,7 +1359,7 @@ def icono_causa(tipo, lado=96):
     return buf
 
 
-def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None, causas=None):
+def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None, causas=None, conteos=None):
     """Silueta del Perú por departamentos coloreada por nivel oficial, con las sedes como puntos.
     niveles_dep: {"Lima": "Naranja", ...};  pines: [(nombre, nivel_impacto)]  -> BytesIO PNG."""
     import json
@@ -1340,11 +1443,20 @@ def dibujar_mapa_png(niveles_dep, pines, alto_px=1500, calor=None, causas=None):
             cy = (ultimo[1] + ultimo[3]) / 2 * red
             if nombre == "callao":                     # muy chico: el símbolo va al mar
                 cx -= s_ic * 1.1
+            n_sin = (conteos or {}).get(nombre)
+            if n_sin is not None:                      # siniestros: círculo azul con el número
+                rb = int(alto_px * (0.018 + 0.0045 * min(n_sin, 40) ** 0.5))
+                f_b = ImageFont.truetype(recurso(os.path.join("fuentes", "Nunito-Bold.ttf")), int(rb * 1.05))
+                dr_ic.ellipse((cx - rb - 4, cy - rb - 4, cx + rb + 4, cy + rb + 4), fill=(255, 255, 255, 255))
+                dr_ic.ellipse((cx - rb, cy - rb, cx + rb, cy + rb), fill=(10, 95, 168, 255))
+                tw_ = dr_ic.textlength(str(n_sin), font=f_b)
+                dr_ic.text((cx - tw_ / 2, cy - f_b.size * 0.62), str(n_sin), font=f_b, fill=(255, 255, 255, 255))
+                continue
             paso_ic = s_ic * 1.02
             x0 = cx - paso_ic * (len(lista) - 1) / 2
             for i_, tipo in enumerate(lista):
                 dibujar_causa(dr_ic, tipo, x0 + i_ * paso_ic, cy, s_ic)
-        alfa = capa_ic.getchannel("A").point(lambda v: int(v * 0.78))
+        alfa = capa_ic.getchannel("A").point(lambda v: int(v * (1.0 if conteos else 0.78)))
         capa_ic.putalpha(alfa)
         img.alpha_composite(capa_ic)
         dr = ImageDraw.Draw(img)
@@ -1422,7 +1534,11 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
                            (t == "quebradas" and (capas[t].get(dep) or _sin_tildes(dep) in q_hechos)) or
                            (t == "calor" and capas[t].get(dep) == "Rojo")]
     MAPA_CON_CALOR = False      # sin rayas: el calor entra al color y se marca con su símbolo
-    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, causas=causas)
+    conteos = None
+    if d.get("siniestros") and d.get("siniestros_estilo") == "mapa":
+        conteos = {_sin_tildes(k_): v[0] for k_, v in d["siniestros"]["deps"].items()}
+        causas = {k_: ["siniestro"] for k_ in d["siniestros"]["deps"]}     # el número reemplaza a los símbolos
+    res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, causas=causas, conteos=conteos)
     mh = ph - 0.24
     mw = 0.0
     sw = lambda nv: ("■\u00a0", True, RGBColor(*FILL_NIVEL[nv]))
@@ -1443,6 +1559,8 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         ancho_niv = sum(0.15 + ancho_pt(t_, fs_l) / 72 + sep for _, t_ in niveles_l) - sep
         causas_l = [(t, "Calor extremo" if (t == "calor" and not modo.startswith("grav")) else ETIQUETA_CAUSA[t])
                     for t in tipos]
+        if conteos:
+            causas_l = [("siniestro", "N.º de siniestros FEN por departamento")]
         ancho_cau = sum(0.18 + ancho_pt(t_, fs_l) / 72 + sep for _, t_ in causas_l) - sep if causas_l else 0
         x0 = x_der - max(ancho_niv, ancho_cau)
         x = x0
@@ -1665,7 +1783,10 @@ def construir(d, salida_pptx, borrador=False):
     if es_mapa:                                   # panel "Impacto y exposición" con el mapa
         EXTRA_AG_TOTAL = 2.12 + (0.34 if hay_casos else 0.0) - 0.6
     Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG_TOTAL
-    ry0, ry1 = TOP + HEAD + 0.16, 6.02
+    # Con siniestros: la columna derecha se parte en dos tarjetas (Pronósticos arriba, Siniestros FEN abajo)
+    ALTO_SIN = 1.55
+    BOTTOM_R = (BOTTOM - ALTO_SIN - 0.16) if d.get("siniestros") else BOTTOM
+    ry0, ry1 = TOP + HEAD + 0.16, (BOTTOM_R - 0.14) if d.get("siniestros") else 6.02
     MIN_FS = 7.5
 
     def alto_tit(t, ancho, s=13):
@@ -1765,7 +1886,8 @@ def construir(d, salida_pptx, borrador=False):
     for x, w, titulo, nom, color in ((LX, LW, "ESTATUS DEL DÍA", "Tarjeta estatus", P_BLUE_DK),
                                      (RX, RW, "PRONÓSTICOS" if len(bloques) == len(bloques_base)
                                       else "PRONÓSTICOS Y AFECTACIONES", "Tarjeta pronostico", P_PINK)):
-        c = caja(slide, x, TOP, w, BOTTOM - TOP, WHITE, P_LINE, MSO_SHAPE.ROUNDED_RECTANGLE, nom)
+        c = caja(slide, x, TOP, w, (BOTTOM if x == LX else BOTTOM_R) - TOP, WHITE, P_LINE,
+                 MSO_SHAPE.ROUNDED_RECTANGLE, nom)
         c.adjustments[0] = 0.035
         sombra_suave(c)
         h = caja(slide, x, TOP, w, HEAD, P_TINT, None, MSO_SHAPE.ROUND_2_SAME_RECTANGLE, nom + " encabezado")
@@ -1886,15 +2008,18 @@ def construir(d, salida_pptx, borrador=False):
     if rz and rz_estilo != "mapa":
         hr = alto_radar(rz, rz_estilo, RW - 0.44)
         dibujar_radar(slide, rz, rz_estilo, RX + 0.22, 6.14 - 0.08 - hr, RW - 0.44, hr)
-    nb = caja(slide, RX + 0.22, 6.14, RW - 0.44, 0.6, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Nota monitoreo")
-    nb.adjustments[0] = 0.25
-    icono(slide, icono_circulo(_radar, G_PURPLE), RX + 0.34, 6.25, 0.38)
-    nota = d["nota"] or "Se mantiene el monitoreo."
-    ancho_nota = RW - 1.2
-    fs_nota = 11.0
-    while fs_nota > 7.5 and contar_lineas("", nota, fs_nota, ancho_nota * 72, ) * fs_nota * 1.2 / 72 > 0.54:
-        fs_nota -= 0.5
-    texto(slide, RX + 0.86, 6.14, ancho_nota, 0.6, nota, fs_nota, P_INK, True, anchor=MSO_ANCHOR.MIDDLE)
+    if d.get("siniestros"):
+        dibujar_siniestros(slide, d["siniestros"], RX, BOTTOM - ALTO_SIN, RW, ALTO_SIN)
+    else:
+        nb = caja(slide, RX + 0.22, 6.14, RW - 0.44, 0.6, P_TINT, None, MSO_SHAPE.ROUNDED_RECTANGLE, "Nota monitoreo")
+        nb.adjustments[0] = 0.25
+        icono(slide, icono_circulo(_radar, G_PURPLE), RX + 0.34, 6.25, 0.38)
+        nota = d["nota"] or "Se mantiene el monitoreo."
+        ancho_nota = RW - 1.2
+        fs_nota = 11.0
+        while fs_nota > 7.5 and contar_lineas("", nota, fs_nota, ancho_nota * 72, ) * fs_nota * 1.2 / 72 > 0.54:
+            fs_nota -= 0.5
+        texto(slide, RX + 0.86, 6.14, ancho_nota, 0.6, nota, fs_nota, P_INK, True, anchor=MSO_ANCHOR.MIDDLE)
     if not cabe:
         print("  Aviso: hay mucho texto; revisa en el PPT que nada quede cortado.")
 
@@ -2183,7 +2308,7 @@ def leer_configuracion(carpeta_script):
         CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
         MODO_CORREO: automate | outlook | ninguno
     Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
-    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "fen"}
+    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "fen", "siniestros": "resumen"}
     ruta = os.path.join(carpeta_script, "configuracion.txt")
     if not os.path.exists(ruta):
         return conf
@@ -2204,6 +2329,8 @@ def leer_configuracion(carpeta_script):
                 conf["radar"] = v.lower()
             elif k == "MAPA" and v:
                 conf["mapa"] = v.lower()
+            elif k == "SINIESTROS" and v:
+                conf["siniestros"] = v.lower()
             elif k == "RADAR_ESTILO" and v:
                 conf["radar_estilo"] = v.lower()
     return conf
@@ -2485,6 +2612,13 @@ def main():
             if d["radar_estilo"] == "mapa" and not ruta_geojson():
                 print("  [!] AVISO: falta recursos\\peru_departamentos.geojson; el mapa no se puede dibujar.")
     print("-" * 70)
+    est_sin = (os.environ.get("FEN_SINIESTROS") or config.get("siniestros", "resumen")).lower()
+    if est_sin not in ("no", "0"):
+        sn = cargar_siniestros([carpeta_script, a.salida])
+        if sn:
+            d["siniestros"], d["siniestros_estilo"] = sn, ("mapa" if est_sin.startswith("mapa") else "resumen")
+            print(f"[OK] SINIESTROS FEN ({sn['archivo']}): {sn['total'][0]} siniestros · {usd_corto(sn['total'][1])} · "
+                  + " · ".join(f"{k} {v[0]}" for k, v in sn["lineas"].items()))
     faltan = [c for c in ("numero", "fecha") if not d[c]]
     if faltan:
         sys.exit("Falta completar en el archivo de datos: " + ", ".join(f.upper() for f in faltan)

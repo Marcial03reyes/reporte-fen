@@ -23,3 +23,7 @@ RADAR_ESTILO: mapa
 #   fen      -> color = avisos de lluvias y quebradas; gotas, cerros y un sol donde el calor es extremo
 #   gravedad -> color = nivel más alto de cualquier aviso (incluye calor); un símbolo con la causa
 MAPA: fen
+
+# Siniestros FEN (tercera tarjeta, abajo a la derecha). Se lee siniestros.xlsx o data.xlsx de esta carpeta.
+#   resumen -> muestra la tarjeta si el archivo existe;  no -> no la muestra
+SINIESTROS: resumen

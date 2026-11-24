@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-24 (siniestros FEN)"
+VERSION = "2026-11-24b (siniestros FEN, mapa más grande)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1539,14 +1539,14 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         conteos = {_sin_tildes(k_): v[0] for k_, v in d["siniestros"]["deps"].items()}
         causas = {k_: ["siniestro"] for k_ in d["siniestros"]["deps"]}     # el número reemplaza a los símbolos
     res = dibujar_mapa_png(niveles, pines_sedes(d), alto_px=1600, causas=causas, conteos=conteos)
-    mh = ph - 0.24
+    mh = ph - 0.08                     # mapa casi del alto del panel (un poco más grande)
     mw = 0.0
     sw = lambda nv: ("■\u00a0", True, RGBColor(*FILL_NIVEL[nv]))
     if res:
         buf, ratio = res
         mw = mh * ratio
-        mx = px + pw - 0.15 - mw
-        slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.12), Inches(mw), Inches(mh))
+        mx = px + pw - 0.08 - mw
+        slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.04), Inches(mw), Inches(mh))
         # leyenda de intensidad en el mar, abajo a la izquierda del mapa
         # Leyenda en dos filas, a la altura de "Fuente": arriba los símbolos (causa), abajo los niveles (color)
         tipos = [t for t in ("lluvias", "quebradas", "calor") if any(t in v for v in causas.values())]

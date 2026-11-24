@@ -25,5 +25,5 @@ RADAR_ESTILO: mapa
 MAPA: fen
 
 # Siniestros FEN (tercera tarjeta, abajo a la derecha). Se lee siniestros.xlsx o data.xlsx de esta carpeta.
-#   resumen -> muestra la tarjeta si el archivo existe;  no -> no la muestra
-SINIESTROS: resumen
+#   resumen -> muestra la tarjeta si el archivo existe;  no -> no la muestra (en stand by)
+SINIESTROS: no

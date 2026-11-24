@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-24b (siniestros FEN, mapa más grande)"
+VERSION = "2026-11-24c (oleaje y alertas adicionales; siniestros en stand by)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -86,11 +86,13 @@ SECCIONES = {
     "AGENCIAS": "agencias",
     "AGENCIAS PACIFICO": "agencias",
     "AGENCIAS PACÍFICO": "agencias",
+    "ALERTAS ADICIONALES": "adicionales",
+    "OTRAS ALERTAS": "adicionales",
 }
 
 
 def _vacio():
-    return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [], "huaicos": [], "calor": [],
+    return {"numero": "", "fecha": "", "horario": "", "lluvias": [], "vias": [], "rios": [], "huaicos": [], "calor": [], "oleaje": [], "adicionales": [],
             "aviso_dptos": {}, "aviso_dptos_titulo": "",
             "p1_titulo": "", "p1": [], "p2_titulo": "", "p2": [], "nota": "",
             "conf": [], "sedes": "", "colab": "", "pie": [], "medidas": [], "recomendaciones": [], "vigencia": "",
@@ -283,6 +285,8 @@ def _tipo_seccion(titulo):
         return "medidas"
     if hay(r"impacto|credicorp|infraestructura|colaborador|agencia"):
         return "ignorar"            # el impacto lo completa Pacífico
+    if hay(r"oleajes?|marejadas?|braveza"):
+        return "oleaje"             # oleaje anómalo: sección propia del estatus
     if hay(r"calor|radiaci[oó]n|temperatura"):
         return "calor"              # avisos de calor / radiación UV: sección propia del estatus
     if hay(r"bajo aviso|aviso 24|departamentos? (bajo|con) aviso|niveles? de aviso"):
@@ -569,13 +573,20 @@ def _cargar_fuente(bold=False):
 F_REG, F_BOLD = _cargar_fuente(), _cargar_fuente(True)
 
 
-def ancho_pt(texto, size_pt, bold=False):
+from functools import lru_cache
+
+
+@lru_cache(maxsize=200000)
+def _ancho_100(texto, bold):
     f = F_BOLD if bold else F_REG
-    if f is None:
-        return len(texto) * size_pt * 0.52
-    return f.getlength(texto) * size_pt / 100.0
+    return len(texto) * 52.0 if f is None else f.getlength(texto)
 
 
+def ancho_pt(texto, size_pt, bold=False):
+    return _ancho_100(texto, bool(bold)) * size_pt / 100.0
+
+
+@lru_cache(maxsize=200000)
 def contar_lineas(etiqueta, texto, size_pt, ancho_disp_pt):
     """Cuenta líneas de un párrafo con etiqueta en negrita + texto normal (ajuste por palabras)."""
     palabras = [(w, True) for w in (etiqueta + ":").split()] if etiqueta else []
@@ -639,6 +650,17 @@ def _rio(dr, c, s):
             dr.arc((x0, s*y - s*.08, x0 + s*.28, s*y + s*.08), 180, 360, fill=c, width=w)
     dr.arc((s*.30, s*.10, s*.70, s*.42), 200, 340, fill=c, width=w)
     dr.ellipse((s*.46, s*.20, s*.56, s*.30), fill=c)
+
+
+def _ola(dr, c, s):
+    """Ola: cresta curva y dos líneas de agua."""
+    w = s // 18
+    dr.arc((s*.12, s*.18, s*.62, s*.68), 180, 330, fill=c, width=w)
+    dr.arc((s*.40, s*.30, s*.60, s*.50), 0, 200, fill=c, width=w)
+    for y in (.62, .78):
+        for i in range(3):
+            x0 = s*(.10 + i*.27)
+            dr.arc((x0, s*y - s*.07, x0 + s*.27, s*y + s*.07), 180, 360, fill=c, width=w)
 
 
 def _sol(dr, c, s):
@@ -1721,7 +1743,21 @@ def chip(slide, x, y, w, h, etiqueta, valor, afectado, size):
     texto(slide, x + 0.16, y, w - 0.3, h, partes, size, anchor=MSO_ANCHOR.MIDDLE)
 
 
+def repartir_adicionales(d):
+    """[ALERTAS ADICIONALES] del txt: cada línea 'Lugar: detalle' va a la sección que le corresponde."""
+    reglas = (("oleaje", r"oleaje|olas|marejada|braveza|playa|litoral|malec[oó]n|costa verde"),
+              ("huaicos", r"huaico|deslizamiento|derrumbe"),
+              ("vias", r"tr[aá]nsito|carretera|\bv[ií]a\b|restricci|restringid|interrump"),
+              ("rios", r"quebrada|r[ií]o\b|desborde|inundaci"),
+              ("calor", r"calor|temperatura|radiaci"),
+              ("lluvias", r"lluvi|precipitaci|granizo"))
+    for linea in d.pop("adicionales", []) or []:
+        destino = next((k for k, rx in reglas if re.search(rx, linea, re.I)), "rios")
+        d.setdefault(destino, []).insert(0, _etiqueta_bonita(linea))
+
+
 def construir(d, salida_pptx, borrador=False):
+    repartir_adicionales(d)
     prs = Presentation()
     prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
     slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -1759,6 +1795,9 @@ def construir(d, salida_pptx, borrador=False):
     if d.get("huaicos"):
         h_ = ("HUAICOS Y DESLIZAMIENTOS", _huaico, G_AMBER, d["huaicos"])
         extras.append((h_, (h_[0], WARN_FG, h_[3])))
+    if d.get("oleaje"):
+        o_ = ("OLEAJE ANÓMALO", _ola, (0, 140, 160), d["oleaje"])
+        extras.append((o_, (o_[0], RGBColor(0x00, 0x74, 0x86), o_[3])))
     secs_base, bloques_base = secs, bloques
     if d.get("calor"):                 # siempre en el Estatus del día, al final (después de ríos y huaicos)
         c_ = ("CALOR Y RADIACIÓN UV", _sol, (230, 120, 20), d["calor"])
@@ -1850,7 +1889,8 @@ def construir(d, salida_pptx, borrador=False):
         bloques_o = bloques_base + [e[1] for e, lado in zip(extras, lados) if lado == "der"]
         opciones.append((secs_o, bloques_o, lados.count("der")))
     # Con el mapa, si la columna izquierda no entra, el panel de impacto se hace más bajo.
-    alturas = [EXTRA_AG_TOTAL - r for r in (0.0, 0.08, 0.16, 0.24)] if es_mapa else [EXTRA_AG_TOTAL]
+    # (no más de 0.08": la leyenda de dos filas necesita su espacio bajo los chips)
+    alturas = [EXTRA_AG_TOTAL - r for r in (0.0, 0.08)] if es_mapa else [EXTRA_AG_TOTAL]
     # Días con muchísimo texto: se permite letra algo menor antes que dejar algo tapado
     pruebas = [(mf, ex) for mf in (7.5, 7.0, 6.5) for ex in alturas]
     for MIN_FS, EXTRA_AG_TOTAL in pruebas:
@@ -1873,8 +1913,11 @@ def construir(d, salida_pptx, borrador=False):
     if not cabe:
         # Último recurso: nunca dejar texto tapado. Se quita la línea más antigua (la última) de la sección
         # más larga y se vuelve a armar la diapositiva.
-        largas = [k for k in ("lluvias", "vias", "rios", "huaicos", "p1", "medidas", "recomendaciones")
-                  if len(d.get(k) or []) > 1]
+        # primero se recortan los hechos (la línea más antigua de la sección más larga); el pronóstico al final
+        # orden: hechos más antiguos -> pronóstico ("Otros avisos" primero) -> avisos de calor/oleaje al final
+        largas = [k for k in ("lluvias", "vias", "rios", "huaicos") if len(d.get(k) or []) > 1] \
+            or [k for k in ("p1", "medidas", "recomendaciones") if len(d.get(k) or []) > 1] \
+            or [k for k in ("oleaje", "calor") if len(d.get(k) or []) > 1]
         if largas:
             k = max(largas, key=lambda k_: (len(d[k_]), sum(len(x) for x in d[k_])))
             quitado = d[k].pop()
@@ -2308,7 +2351,7 @@ def leer_configuracion(carpeta_script):
         CARPETA_SALIDA: ruta donde guardar PPT y PNG (p. ej. una carpeta sincronizada con OneDrive)
         MODO_CORREO: automate | outlook | ninguno
     Sin el archivo: se guarda en 'Reportes generados' y se usa el modo outlook (destinatarios.txt)."""
-    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "fen", "siniestros": "resumen"}
+    conf = {"salida": "", "modo": "outlook", "radar": "si", "radar_estilo": "mapa", "mapa": "fen", "siniestros": "no"}
     ruta = os.path.join(carpeta_script, "configuracion.txt")
     if not os.path.exists(ruta):
         return conf
@@ -2612,7 +2655,7 @@ def main():
             if d["radar_estilo"] == "mapa" and not ruta_geojson():
                 print("  [!] AVISO: falta recursos\\peru_departamentos.geojson; el mapa no se puede dibujar.")
     print("-" * 70)
-    est_sin = (os.environ.get("FEN_SINIESTROS") or config.get("siniestros", "resumen")).lower()
+    est_sin = (os.environ.get("FEN_SINIESTROS") or config.get("siniestros", "no")).lower()   # en stand by
     if est_sin not in ("no", "0"):
         sn = cargar_siniestros([carpeta_script, a.salida])
         if sn:

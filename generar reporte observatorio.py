@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-23 (Observatorio)"
+VERSION_OBS = "2026-11-24 (Observatorio)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -33,13 +33,14 @@ CUENTAS_OFICIALES = {
     "@senamhiperu": "SENAMHI", "@senamhidz05": "SENAMHI", "@coenperu": "COEN", "@indeciperu": "INDECI",
     "@mtc_gobperu": "MTC", "@proviasnac_peru": "Provías", "@anaperu": "ANA", "@bomberos_pe": "Bomberos",
     "@coercallao": "COER Callao", "@naval_peru": "Marina", "@enfenperu": "ENFEN",
+    "@munilima": "Municipalidad de Lima", "@dhn_mgp": "DHN", "@dicapiperu": "DICAPI",
 }
 # Frases que indican que el propio texto no está confirmado
 NO_CONFIRMADO = re.compile(r"pendiente|por confirmar|sin confirmar|por corroborar|no confirmad|se viene verificando|"
                            r"en evaluaci[oó]n preliminar|presunt|habr[ií]a\b", re.I)
 # Publicaciones que no son hechos del día (campañas, notas de prensa, actividades)
 NO_HECHO = re.compile(r"nota de prensa|prep[aá]rate|recomienda|recomendaciones|campa[ñn]a|simulacro|papa\b|le[oó]n xiv|"
-                      r"visita|#cuidatupiel|conoce c[oó]mo|infograf", re.I)
+                      r"visita|#cuidatupiel|conoce c[oó]mo|infograf|incendio forestal|incendios forestales", re.I)
 PRONOSTICO = re.compile(r"^\s*se prev[eé]n?|persistir[aá]n|contin[uú]an? las lluvias|\(\d{1,2}:\d{2} a \d{1,2}:\d{2} ?h\)|"
                         r"toma tus precauciones|aviso (de corto plazo|n[°º.]|especial)|contin[uú]ar[aá]n|se esperan?\b|"
                         r"pr[oó]ximas \d* ?horas|#pron[oó]stico|#aviso\b|se estima|podr[ií]an? alcanzar", re.I)
@@ -48,6 +49,7 @@ OBSERVADO = re.compile(r"\b(registr[oóa]\w*|alcanz[oó]|super[oó]|superando|oc
 TEMPERATURA = re.compile(r"°\s*c|temperatura|calor|radiaci[oó]n", re.I)
 
 SECCION_DE = [  # prioridad: el primer patrón que calce decide la sección
+    ("oleaje", re.compile(r"oleaje|marejada|braveza|cierre de puertos|puertos cerrados", re.I)),
     ("huaicos", re.compile(r"huaico|deslizamiento|derrumbe|movimiento en masa|ca[ií]da de rocas", re.I)),
     ("rios", re.compile(r"quebrada|\br[ií]os?\b|caudal|desborde|inundaci|crecida", re.I)),
     ("vias", re.compile(r"(\bv[ií]as?\b|carretera|tr[aá]nsito|puente|tramo).{0,80}(interrump|restring|bloque|cerrad|"
@@ -60,7 +62,7 @@ SECCION_DE = [  # prioridad: el primer patrón que calce decide la sección
 ]
 MAX_POR_SECCION = 3          # las más recientes; así el estatus entra en una diapositiva con letra legible
 MINUSCULA = {"huaico", "huaicos", "lluvias", "lluvia", "clima", "tiempo", "deslizamiento", "inundacion"}
-META = {"radar", "ahora", "minam", "senamhi", "eldato", "clima", "pronostico", "pronóstico", "aviso", "perúresponde",
+META = {"reporte", "radar", "ahora", "minam", "senamhi", "eldato", "clima", "pronostico", "pronóstico", "aviso", "perúresponde",
         "peruresponde", "preparadosantelluviasintensas", "preparadosanteelfen", "atención", "atencion", "coen"}
 
 
@@ -103,9 +105,12 @@ MENCIONES = {"@proviasnac_peru": "Provías Nacional", "@mtc_gobperu": "el MTC", 
 
 def limpiar_post(texto):
     t = re.sub(r"https?://\S+", " ", texto)
+    t = re.sub(r"^\W*ante el ni[ñn]o,?\s*el\s+#?per[uú]\s*responde,?\s*", "", t, flags=re.I)   # lema de campaña
     t = re.sub(r"[\U0001F000-\U0001FFFF☀-➿⬀-⯿️‍]", " ", t)
     t = re.sub(r"#(\w+)", _hashtag, t)
     t = re.sub(r"@\w+", lambda m: MENCIONES.get(m.group(0).lower(), ""), t)
+    t = re.sub(r"\b(el|la)\s+(el|la)\s+", r"\2 ", t, flags=re.I)                 # "el el MTC" -> "el MTC"
+    t = re.sub(r"\b(el|la),\s+(el|la)\b", r"\2", t, flags=re.I)                  # "el, el MTC" -> "el MTC"
     t = re.sub(r"\b(a trav[eé]s de|de la|del|de)\s*([,.;])", r"\2", t)          # "a través de , retiró" -> sin hueco
     t = re.sub(r"^\s*[¡!][^!]{0,140}!\s*", "", t)                               # titular "¡Habilitamos …!" fuera
     t = re.sub(r"\s*(per[uú] ?responde\s*)?ante el fen[oó]meno el ni[ñn]o\.?\s*$", "", t, flags=re.I)   # cola de hashtags
@@ -169,7 +174,7 @@ def hechos_oficiales(snap, desde, hasta):
         if NO_CONFIRMADO.search(crudo):
             descartes["no confirmado"] += 1
             continue
-        if re.search(r"papa\b|le[oó]n xiv", crudo, re.I) or (NO_HECHO.search(crudo) and not OBSERVADO.search(crudo)):
+        if re.search(r"papa\b|le[oó]n xiv|incendio", crudo, re.I) or (NO_HECHO.search(crudo) and not OBSERVADO.search(crudo)):
             descartes["no es un hecho"] += 1
             continue
         texto = limpiar_post(crudo)
@@ -376,10 +381,7 @@ def pronostico(snap, dia, desde):
             tit = re.sub(r"\s*\(.*?\)", "", no.get("title") or "").strip().capitalize()
             tit = re.sub(r"^Incremento de ", "", tit).capitalize()
             otros.append(f"{tit} ({no.get('number')}, hasta {fin:%d/%m})")
-    for no in (snap.get("sources") or {}).get("dhn", {}).get("notices", []):
-        ini, fin = a_lima(no.get("inicio")), a_lima(no.get("fin"))
-        if ini and fin and ini.strftime("%Y-%m-%d") <= dia <= fin.strftime("%Y-%m-%d"):
-            otros.append(f"Oleaje anómalo en el litoral (DHN {no.get('number')}, hasta {fin:%d/%m})")
+    # el oleaje (DHN) va en su propia sección del estatus, no aquí
     if otros:
         items.append("Otros avisos: " + "; ".join(otros) + ".")
     return items
@@ -413,6 +415,11 @@ def leer_datos_observatorio(ruta):
     d["p1_titulo"] = "HOY"
     d["p1"] = pronostico(snap, dia, desde)
     d["calor"] = calor_uv(snap, dia)
+    for no in (snap.get("sources") or {}).get("dhn", {}).get("notices", []):
+        ini, fin = a_lima(no.get("inicio")), a_lima(no.get("fin"))
+        if ini and fin and ini.strftime("%Y-%m-%d") <= dia <= fin.strftime("%Y-%m-%d"):
+            d["oleaje"].insert(0, f"Litoral: aviso especial de oleaje anómalo N.° {no.get('number')} de la DHN, vigente del "
+                                  f"{ini:%d/%m} al {fin:%d/%m}.")
     d["nota"] = d.get("nota") or "Se mantiene el monitoreo."
     base.sintetizar(d)
 
@@ -437,7 +444,7 @@ def leer_datos_observatorio(ruta):
 def _leer_txt_pacifico(ruta):
     """Del txt solo se usa lo de Pacífico. El mensaje del FEN de WhatsApp, si alguien lo pega, se ignora."""
     d = leer_datos_whatsapp(ruta)
-    for k in ("lluvias", "vias", "rios", "huaicos", "p1", "p2", "medidas", "recomendaciones"):
+    for k in ("lluvias", "vias", "rios", "huaicos", "calor", "oleaje", "p1", "p2", "medidas", "recomendaciones"):
         d[k] = []
     d["p1_titulo"] = d["p2_titulo"] = d["horario"] = d["vigencia"] = ""
     return d

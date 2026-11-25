@@ -1,15 +1,17 @@
 """
-Reporte FEN · PROPUESTA con siniestros vs. proyección
-=====================================================
+Reporte FEN · PROPUESTA con siniestros por línea (real vs. estimado)
+====================================================================
 Mismo reporte que "generar reporte observatorio.py" (clima desde el Observatorio, Pacífico desde el txt)
-más una tarjeta "SINIESTROS POR LÍNEA".
+más una tarjeta "SINIESTROS POR LÍNEA". Para cada línea de seguro hay dos barras, en soles:
 
-Por línea compara, en soles, el monto RETENIDO (y en la opción B también el monto DIRECTO) contra la
-PROYECCIÓN, con una barra horizontal cuya longitud total es la proyección.
+  • IMPACTO NETO DE REASEGURO: lo real (monto RETENIDO del Excel) vs. lo estimado (se digita abajo).
+  • IMPACTO BRUTO:             lo real (monto DIRECTO del Excel)  vs. lo estimado (se digita abajo).
+
+La barra gris completa es el estimado y la parte pintada es cuánto va avanzado lo real.
 
   • Excel: siniestros.xlsx o data.xlsx en esta carpeta (columnas Linea, MontoDirectoUSD, MontoRetencionUSD).
-  • Las PROYECCIONES, el TIPO DE CAMBIO y la OPCIÓN DEL GRÁFICO se llenan a mano más abajo,
-    en el bloque "LLENAR A MANO" (no salen de ninguna fuente).
+  • Los ESTIMADOS, el TIPO DE CAMBIO y las OPCIONES se llenan a mano más abajo, en el bloque
+    "LLENAR A MANO" (no salen de ninguna fuente).
 
 NO envía nada a OneDrive ni por correo: el PPT y el PNG quedan en la carpeta "reporte_generado_propuesta".
 
@@ -22,7 +24,7 @@ import re
 import sys
 import warnings
 
-VERSION_PROP = "2026-11-24d (genera opción 1 y 2)"
+VERSION_PROP = "2026-11-25 (impacto neto de reaseguro y bruto vs. estimado)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(CARPETA, "reporte_generado_propuesta")
 TC_DEF = 3.55
@@ -31,30 +33,32 @@ TC_DEF = 3.55
 # ║                                 LLENAR A MANO  (en soles)                                       ║
 # ╚════════════════════════════════════════════════════════════════════════════════════════════════╝
 #
-# 1) PROYECCIONES POR LÍNEA
-#    Cada fila es:   ("NOMBRE EN EL REPORTE",  proyección en soles,  [cómo se llama en la columna "Linea" del Excel])
-#      • La proyección va sin "S/" ni comas. El guion bajo solo separa los miles: 11_900_000 = 11,900,000.
+# 1) ESTIMADOS POR LÍNEA DE SEGURO (en soles)
+#    Cada fila es:
+#      ("NOMBRE EN EL REPORTE",  estimado NETO de reaseguro,  estimado BRUTO,  [cómo se llama en la columna "Linea" del Excel])
+#      • Los montos van sin "S/" ni comas. El guion bajo solo separa los miles: 23_600_000 = 23,600,000.
+#      • NETO de reaseguro se compara con el monto RETENIDO del Excel; BRUTO, con el monto DIRECTO.
 #      • Una línea puede sumar varias del Excel: PROPIEDAD = Vivienda + Negocios.
 #      • El orden de la lista es el orden en el reporte.
-#      • Para activar VIDA o AUTOS: borra el "#" del inicio de su fila, pon su proyección y revisa
-#        que el nombre entre corchetes sea el que aparece en la columna "Linea" del Excel
-#        (mayúsculas y tildes no importan).
-#      • Una fila con "#" adelante, o con proyección 0, no sale en el reporte.
+#      • Una fila con "#" adelante NO sale en el reporte (ni en el gráfico).
+#        Para activar VIDA o AUTOS: borra el "#", pon sus estimados y revisa que el nombre entre corchetes
+#        sea el de la columna "Linea" del Excel (mayúsculas y tildes no importan).
 LINEAS = [
-    # ("VIDA",           0,  ["vida"]),
-    # ("AUTOS",          0,  ["autos", "vehiculos"]),
-    ("PROPIEDAD",  2_500_000,  ["vivienda", "negocios"]),
-    ("EMPRESAS",  11_900_000,  ["comerciales"]),
+    #  NOMBRE          NETO           BRUTO          LÍNEAS DEL EXCEL
+    # ("VIDA",                  0,             0,  ["vida"]),
+    # ("AUTOS",                 0,             0,  ["autos", "vehiculos"]),
+    ("PROPIEDAD",      11_900_000,   202_500_000,  ["vivienda", "negocios"]),
+    ("EMPRESAS",       23_600_000,   440_100_000,  ["comerciales"]),
 ]
 
 # 2) TIPO DE CAMBIO para pasar a soles los montos en dólares del Excel.
-#    None = usa el mismo que trae el Excel (hoy 3.55).   Para fijar otro, por ejemplo:  TIPO_CAMBIO = 3.75
-TIPO_CAMBIO = None
+#    Para usar el mismo que trae el Excel, escribe  TIPO_CAMBIO = None
+TIPO_CAMBIO = 3.50
 
-# 3) OPCIONES DEL GRÁFICO: cada vez que corres el script se genera un PPT y un PNG por cada opción de esta lista.
-#    "1" = OPCIÓN 1: retenido vs. proyección                → archivos ..._Opcion1.pptx / .png
-#    "2" = OPCIÓN 2: retenido + directo vs. proyección      → archivos ..._Opcion2.pptx / .png
-#    Cuando decidan, deja solo la elegida, por ejemplo  OPCIONES = ["1"]  (y entonces salen sin el sufijo).
+# 3) OPCIONES: cada vez que corres el script se genera un PPT y un PNG por cada opción de esta lista.
+#    "1" = OPCIÓN 1: solo impacto neto de reaseguro (real vs. estimado)      → ..._Opcion1.pptx / .png
+#    "2" = OPCIÓN 2: impacto neto de reaseguro + impacto bruto (dos barras)  → ..._Opcion2.pptx / .png
+#    Cuando decidan, deja solo la elegida, por ejemplo  OPCIONES = ["2"]  (y entonces sale sin el sufijo).
 #    Si se quedan con la 1, también puedes borrar en el código los bloques marcados
 #    >>> OPCIÓN 2 ... <<< FIN OPCIÓN 2.
 OPCIONES = ["1", "2"]
@@ -86,8 +90,9 @@ _OPCION_ACTUAL = ["2"]          # la cambia main() en cada vuelta
 
 
 def leer_extra():
-    # solo las filas de LINEAS sin "#" y con proyección > 0; las demás no salen ni en el gráfico
-    activas = [(nom, float(proy), {_norm(x) for x in excel}) for nom, proy, excel in LINEAS if proy and proy > 0]
+    # solo las filas de LINEAS sin "#" y con algún estimado > 0; las demás no salen ni en el gráfico
+    activas = [(nom, float(neto or 0), float(bruto or 0), {_norm(x) for x in excel})
+               for nom, neto, bruto, excel in LINEAS if (neto or 0) > 0 or (bruto or 0) > 0]
     return {"tc": TIPO_CAMBIO, "lineas": activas, "grafico": "B" if _OPCION_ACTUAL[0] == "2" else "A"}
 
 
@@ -118,8 +123,8 @@ def cargar_siniestros_proyeccion(conf):
     if not conf["lineas"]:
         print("  [!] No hay líneas con proyección en LINEAS: el reporte sale sin la tarjeta.")
         return None
-    grupos = {nom: [0, 0.0, 0.0] for nom, _, _ in conf["lineas"]}
-    a_grupo = {x: nom for nom, _, excel in conf["lineas"] for x in excel}
+    grupos = {nom: [0, 0.0, 0.0] for nom, _, _, _ in conf["lineas"]}
+    a_grupo = {x: nom for nom, _, _, excel in conf["lineas"] for x in excel}
     tcs = []
     num = lambda v: float(v) if isinstance(v, (int, float)) else 0.0
     for f in filas[1:]:
@@ -142,14 +147,17 @@ def cargar_siniestros_proyeccion(conf):
     origen_tc = "fijado en el script" if conf["tc"] else ("detectado en el Excel" if tcs else "por defecto")
     res = {"archivo": os.path.basename(ruta), "tc": tc, "origen_tc": origen_tc, "grafico": conf["grafico"],
            "lineas": []}
-    for nombre, proy, _ in conf["lineas"]:
+    for nombre, neto_est, bruto_est, _ in conf["lineas"]:
         cant, d_usd, r_usd = grupos[nombre]
-        res["lineas"].append({"nombre": nombre, "cant": cant, "directo": d_usd * tc, "retenido": r_usd * tc,
-                              "proy": proy})
+        res["lineas"].append({"nombre": nombre, "cant": cant,
+                              "neto": r_usd * tc, "neto_est": neto_est,        # retenido vs. estimado neto
+                              "bruto": d_usd * tc, "bruto_est": bruto_est})    # directo  vs. estimado bruto
     return res
 
 
 def soles(v):
+    if v >= 1e8:
+        return f"S/ {v / 1e6:,.1f} MM".replace(".0 MM", " MM")
     if v >= 1e6:
         return f"S/ {v / 1e6:.1f} MM".replace(".0 MM", " MM")
     if v >= 1e3:
@@ -159,7 +167,9 @@ def soles(v):
 
 def pct(a, b):
     p_ = 100 * a / b if b else 0
-    return f"{p_:.1f}%" if p_ >= 1 else f"{p_:.2f}%"
+    if p_ >= 1:
+        return f"{p_:.1f}%"
+    return f"{p_:.2f}%" if p_ >= 0.01 or p_ == 0 else "<0.01%"
 
 
 def compactar(item, maximo=150):
@@ -179,6 +189,9 @@ def compactar(item, maximo=150):
         else:
             coma = txt.rfind(", ", 60, maximo)
             txt = (txt[:coma] + ".") if coma > 0 else txt[:maximo].rsplit(" ", 1)[0] + "…"
+    if txt.count("(") > txt.count(")"):                  # no cortar dentro de un paréntesis
+        corte = max(txt.rfind(";", 0, txt.rfind("(")), txt.rfind(",", 0, txt.rfind("(")))
+        txt = (txt[:corte] if corte > 40 else txt[:txt.rfind("(")]).rstrip(" ,;") + "."
     txt = txt[:1].upper() + txt[1:]
     return f"{etq.strip()}: {txt}" if etq else txt
 
@@ -210,6 +223,46 @@ def resumir_listas(texto, maximo=4):
 
 
 # ---------------------------------------------------------------- tarjeta con el gráfico
+C_NETO = (0x0A, 0x5F, 0xA8)     # impacto neto de reaseguro: azul oscuro
+C_BRUTO = (0x4F, 0xA3, 0xDB)    # impacto bruto: azul medio (mismo tono, más claro)
+C_RIEL = (0xE4, 0xEA, 0xF2)     # estimado: riel gris
+
+
+def medidas(sn):
+    """Las barras que lleva cada línea según la opción."""
+    m = [("Impacto neto de reaseguro", "neto", "neto_est", C_NETO)]
+    # >>> OPCIÓN 2: segunda barra con el impacto bruto. Borrar este bloque si se quedan con la opción 1.
+    if sn["grafico"] == "B":
+        m.append(("Impacto bruto", "bruto", "bruto_est", C_BRUTO))
+    # <<< FIN OPCIÓN 2
+    return m
+
+
+def alto_tarjeta(sn):
+    n, m = len(sn["lineas"]), len(medidas(sn))
+    por_linea = (0.21 + 0.31 * m + 0.07) if n <= 2 else (0.2 + 0.19 * m + 0.05)
+    return 0.38 + 0.12 + 0.06 + n * por_linea
+
+
+def _barra(slide, x, y, w, h, real, est, color, nombre):
+    B = base
+    riel = B.caja(slide, x, y, w, h, B.RGBColor(*C_RIEL), None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Estimado " + nombre)
+    riel.adjustments[0] = 0.5
+    if real > 0 and est > 0:
+        b = B.caja(slide, x, y, max(0.06, w * min(1, real / est)), h, B.RGBColor(*color), None,
+                   B.MSO_SHAPE.ROUNDED_RECTANGLE, "Real " + nombre)
+        b.adjustments[0] = 0.5
+
+
+def _valor(ln, clave, clave_est):
+    """'S/ 76 mil de S/ 11.9 MM · 0.64%'  (texto en tinta; el color lo lleva la barra)"""
+    B = base
+    real, est = ln[clave], ln[clave_est]
+    if not est:
+        return [(soles(real), True, B.P_INK), ("  sin estimado", False, B.P_GREY)]
+    return [(soles(real), True, B.P_INK), (" de " + soles(est), False, B.P_GREY), (" · " + pct(real, est), True, B.P_INK)]
+
+
 def dibujar_proyeccion(slide, sn, x, y, w, h):
     B = base
     head = 0.38
@@ -221,89 +274,37 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
     hb.adjustments[1] = 0.0
     B.texto(slide, x + 0.3, y, w * 0.75, head, "SINIESTROS POR LÍNEA", 12, B.P_BLUE_DK, "xb",
             anchor=B.MSO_ANCHOR.MIDDLE)
-    B.texto(slide, x + w * 0.7, y, w * 0.3 - 0.25, head, f"En soles · TC {sn['tc']:.2f}", 8, B.P_GREY,
-            align=B.PP_ALIGN.RIGHT, anchor=B.MSO_ANCHOR.MIDDLE)
+    B.texto(slide, x + w * 0.55, y, w * 0.45 - 0.25, head, f"En soles · TC {sn['tc']:.2f}", 8,
+            B.P_GREY, align=B.PP_ALIGN.RIGHT, anchor=B.MSO_ANCHOR.MIDDLE)
 
-    con_directo = sn["grafico"] == "B"        # OPCIÓN 2 (si se quedan con la 1, esto queda siempre en False)
-    C_RET = B.RGBColor(0x0A, 0x5F, 0xA8)      # retenido: azul oscuro
-    C_DIR = B.RGBColor(0x8F, 0xC3, 0xEA)      # directo: azul claro (mismo tono)
-    C_TRK = B.RGBColor(0xE4, 0xEA, 0xF2)      # proyección: riel gris
     x0, ancho = x + 0.3, w - 0.6
-    alto_fila = (h - head - 0.12) / len(sn["lineas"])    # filas más separadas
+    ms = medidas(sn)
+    compacta = len(sn["lineas"]) > 2           # 3 o 4 líneas: etiqueta, barra y monto en un solo renglón
+    alto_linea = (h - head - 0.18) / len(sn["lineas"])
     yy = y + head + 0.1
-    if len(sn["lineas"]) > 2:                            # 3 o 4 líneas: versión compacta para que entre todo
-        _filas_compactas(slide, sn, x0, yy, ancho, alto_fila, con_directo, C_RET, C_DIR, C_TRK)
-        return
     for ln in sn["lineas"]:
-        # fila 1: nombre + n.º de siniestros | proyección
-        B.texto(slide, x0, yy, ancho * 0.6, 0.2,
-                [[(ln["nombre"].upper(), "xb", B.P_INK),
-                  (f"  {ln['cant']} siniestros" + "", False,
-                   B.P_GREY)]], 9, nombre="Fila " + ln["nombre"])
-        B.texto(slide, x0 + ancho * 0.6, yy, ancho * 0.4, 0.2,
-                [[("Proyección ", False, B.P_GREY), (soles(ln["proy"]), True, B.P_INK)]], 9,
-                align=B.PP_ALIGN.RIGHT)
-        # barra: riel = proyección; relleno = directo (B) y retenido
-        by, bh = yy + 0.21, 0.15
-        trk = B.caja(slide, x0, by, ancho, bh, C_TRK, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Proyeccion " + ln["nombre"])
-        trk.adjustments[0] = 0.5
-        # >>> OPCIÓN 2: barra del monto DIRECTO (azul claro). Borrar este bloque si se quedan con la opción 1.
-        if con_directo and ln["directo"] > 0:
-            wd = max(0.05, ancho * min(1, ln["directo"] / ln["proy"]))
-            bd = B.caja(slide, x0, by, wd, bh, C_DIR, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Directo " + ln["nombre"])
-            bd.adjustments[0] = 0.5
-        # <<< FIN OPCIÓN 2
-        # Opción 1 y 2: barra del monto RETENIDO (azul oscuro)
-        if ln["retenido"] > 0:
-            wr = max(0.05, ancho * min(1, ln["retenido"] / ln["proy"]))
-            br = B.caja(slide, x0, by, wr, bh, C_RET, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Retenido " + ln["nombre"])
-            br.adjustments[0] = 0.5
-        # fila 3: valores (texto en tinta; el cuadrado de color da la identidad)
-        partes = [("■ ", True, C_RET), ("Retenido ", False, B.P_GREY), (soles(ln["retenido"]), True, B.P_INK),
-                  (f" ({pct(ln['retenido'], ln['proy'])})", False, B.P_INK)]
-        # >>> OPCIÓN 2: valor del DIRECTO. Borrar este bloque si se quedan con la opción 1.
-        if con_directo:
-            partes += [("     ■ ", True, C_DIR), ("Directo ", False, B.P_GREY), (soles(ln["directo"]), True, B.P_INK),
-                       (f" ({pct(ln['directo'], ln['proy'])})", False, B.P_INK)]
-        # <<< FIN OPCIÓN 2
-        B.texto(slide, x0, by + bh + 0.03, ancho, 0.18, [partes], 8.5, nombre="Valores " + ln["nombre"])
-        yy += alto_fila
-
-
-
-def _filas_compactas(slide, sn, x0, yy, ancho, alto_fila, con_directo, C_RET, C_DIR, C_TRK):
-    """Con 3 o 4 líneas cada fila ocupa dos renglones: nombre | proyección, y la barra con los montos al costado."""
-    B = base
-    ab = ancho * (0.28 if con_directo else 0.50)          # largo de la barra; el resto, los montos
-    for ln in sn["lineas"]:
-        B.texto(slide, x0, yy, ancho * 0.6, 0.19,
-                [[(ln["nombre"].upper(), "xb", B.P_INK), (f"  {ln['cant']} siniestros", False, B.P_GREY)]], 8.5,
-                nombre="Fila " + ln["nombre"])
-        B.texto(slide, x0 + ancho * 0.6, yy, ancho * 0.4, 0.19,
-                [[("Proyección ", False, B.P_GREY), (soles(ln["proy"]), True, B.P_INK)]], 8.5, align=B.PP_ALIGN.RIGHT)
-        by, bh = yy + 0.22, 0.12
-        trk = B.caja(slide, x0, by, ab, bh, C_TRK, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Proyeccion " + ln["nombre"])
-        trk.adjustments[0] = 0.5
-        # >>> OPCIÓN 2: barra del monto DIRECTO. Borrar este bloque si se quedan con la opción 1.
-        if con_directo and ln["directo"] > 0:
-            bd = B.caja(slide, x0, by, max(0.05, ab * min(1, ln["directo"] / ln["proy"])), bh, C_DIR, None,
-                        B.MSO_SHAPE.ROUNDED_RECTANGLE, "Directo " + ln["nombre"])
-            bd.adjustments[0] = 0.5
-        # <<< FIN OPCIÓN 2
-        if ln["retenido"] > 0:
-            br = B.caja(slide, x0, by, max(0.05, ab * min(1, ln["retenido"] / ln["proy"])), bh, C_RET, None,
-                        B.MSO_SHAPE.ROUNDED_RECTANGLE, "Retenido " + ln["nombre"])
-            br.adjustments[0] = 0.5
-        partes = [("■ ", True, C_RET), ("Ret. ", False, B.P_GREY), (soles(ln["retenido"]), True, B.P_INK),
-                  (f" ({pct(ln['retenido'], ln['proy'])})", False, B.P_INK)]
-        # >>> OPCIÓN 2: valor del DIRECTO. Borrar este bloque si se quedan con la opción 1.
-        if con_directo:
-            partes += [("   ■ ", True, C_DIR), ("Dir. ", False, B.P_GREY), (soles(ln["directo"]), True, B.P_INK),
-                       (f" ({pct(ln['directo'], ln['proy'])})", False, B.P_INK)]
-        # <<< FIN OPCIÓN 2
-        B.texto(slide, x0 + ab + 0.1, by - 0.04, ancho - ab - 0.1, 0.2, [partes], 7.5,
-                anchor=B.MSO_ANCHOR.MIDDLE, nombre="Valores " + ln["nombre"])
-        yy += alto_fila
+        B.texto(slide, x0, yy, ancho, 0.2,
+                [[(ln["nombre"].upper(), "xb", B.P_INK), (f"  {ln['cant']} siniestros", False, B.P_GREY)]],
+                8.5 if compacta else 9, nombre="Fila " + ln["nombre"])
+        sy = yy + (0.2 if compacta else 0.22)
+        for etiqueta, clave, clave_est, color in ms:
+            nom = f"{etiqueta} {ln['nombre']}"
+            if compacta:
+                corta = "Neto de reaseguro" if clave == "neto" else "Bruto"
+                B.texto(slide, x0, sy, 1.15, 0.18, [[("■ ", True, B.RGBColor(*color)), (corta, False, B.P_GREY)]], 7.5,
+                        anchor=B.MSO_ANCHOR.MIDDLE)
+                ab = ancho - 1.2 - 1.75
+                _barra(slide, x0 + 1.2, sy + 0.045, ab, 0.09, ln[clave], ln[clave_est], color, nom)
+                B.texto(slide, x0 + ancho - 1.7, sy, 1.7, 0.18, [_valor(ln, clave, clave_est)], 7.5,
+                        align=B.PP_ALIGN.RIGHT, anchor=B.MSO_ANCHOR.MIDDLE)
+                sy += 0.19
+            else:
+                B.texto(slide, x0, sy, ancho * 0.5, 0.17, [[(etiqueta, False, B.P_GREY)]], 8)
+                B.texto(slide, x0 + ancho * 0.4, sy, ancho * 0.6, 0.17, [_valor(ln, clave, clave_est)], 8,
+                        align=B.PP_ALIGN.RIGHT)
+                _barra(slide, x0, sy + 0.18, ancho, 0.1, ln[clave], ln[clave_est], color, nom)
+                sy += 0.31
+        yy += alto_linea
 
 
 # ---------------------------------------------------------------- arranque
@@ -331,19 +332,19 @@ def main():
             etq, _, txt = it.partition(":")
             lugar = "el litoral" if etq.strip().lower() == "litoral" else etq.strip()
             unidos.append(f"Oleaje en {lugar}: {txt.strip()}")
-        d["p1"] = d["p1"] + unidos
+        # con dos barras por línea la tarjeta de siniestros crece: el pronóstico se acorta a lo esencial
+        d["p1"] = [compactar(it, 115) for it in d["p1"] + unidos]
         d["calor"], d["oleaje"] = [], []
         d["avisos_derecha"] = True      # Estatus = hechos reportados; derecha = pronóstico + avisos (calor, oleaje)
         sn = cargar_siniestros_proyeccion(leer_extra())     # se lee en cada opción
         if sn:
             d["siniestros"] = sn
-            n = len(sn["lineas"])
-            d["siniestros_alto"] = 0.5 + (0.65 if n <= 2 else 0.44) * n     # 2 líneas = 1.8"; 4 líneas = 2.26"
+            d["siniestros_alto"] = alto_tarjeta(sn)
             print(f"[OK] SINIESTROS ({sn['archivo']}) · TC {sn['tc']:.2f} ({sn['origen_tc']}) · opción {'2' if sn['grafico'] == 'B' else '1'}")
             for ln in sn["lineas"]:
-                print(f"     {ln['nombre']}: {ln['cant']} siniestros · retenido {soles(ln['retenido'])} "
-                      f"({pct(ln['retenido'], ln['proy'])}) · directo {soles(ln['directo'])} "
-                      f"({pct(ln['directo'], ln['proy'])}) · proyección {soles(ln['proy'])}")
+                print(f"     {ln['nombre']}: {ln['cant']} siniestros · neto (retenido) {soles(ln['neto'])} de "
+                      f"{soles(ln['neto_est'])} ({pct(ln['neto'], ln['neto_est'])}) · bruto (directo) "
+                      f"{soles(ln['bruto'])} de {soles(ln['bruto_est'])} ({pct(ln['bruto'], ln['bruto_est'])})")
         return d
     del leer_obs
 

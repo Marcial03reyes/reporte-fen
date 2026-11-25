@@ -27,12 +27,3 @@ MAPA: fen
 # Siniestros FEN (tercera tarjeta, abajo a la derecha). Se lee siniestros.xlsx o data.xlsx de esta carpeta.
 #   resumen -> muestra la tarjeta si el archivo existe;  no -> no la muestra (en stand by)
 SINIESTROS: no
-
-# ---- Solo para "generar reporte propuesta.py" (siniestros vs. proyección; no envía a OneDrive) ----
-# Gráfico: A = retenido vs. proyección  |  B = retenido + directo vs. proyección
-GRAFICO_PROPUESTA: B
-# Proyecciones en soles
-PROYECCION_COMERCIALES: 11900000
-PROYECCION_PROPIEDAD: 2500000
-# Tipo de cambio (vacío = el mismo que usa el Excel; hoy 3.55)
-TIPO_CAMBIO:

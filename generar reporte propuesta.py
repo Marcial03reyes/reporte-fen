@@ -2,21 +2,14 @@
 Reporte FEN · PROPUESTA con siniestros vs. proyección
 =====================================================
 Mismo reporte que "generar reporte observatorio.py" (clima desde el Observatorio, Pacífico desde el txt)
-más una tarjeta "SINIESTROS FEN VS. PROYECCIÓN" para dos líneas:
-
-  • Comerciales ........ línea "Comerciales" del Excel
-  • Propiedad .......... "Vivienda" + "Negocios"
+más una tarjeta "SINIESTROS POR LÍNEA".
 
 Por línea compara, en soles, el monto RETENIDO (y en la opción B también el monto DIRECTO) contra la
-PROYECCIÓN de la aseguradora, con una barra horizontal cuya longitud total es la proyección.
+PROYECCIÓN, con una barra horizontal cuya longitud total es la proyección.
 
   • Excel: siniestros.xlsx o data.xlsx en esta carpeta (columnas Linea, MontoDirectoUSD, MontoRetencionUSD).
-  • Tipo de cambio: el mismo que usa el Excel para pasar soles a dólares (se detecta solo; hoy 3.55).
-    Se puede fijar en configuracion.txt con   TIPO_CAMBIO: 3.55
-  • Proyecciones (soles), en configuracion.txt:
-        PROYECCION_COMERCIALES: 11900000
-        PROYECCION_PROPIEDAD: 2500000
-  • Gráfico:  GRAFICO_PROPUESTA: A  (retenido vs. proyección)   |   B  (retenido + directo vs. proyección)
+  • Las PROYECCIONES, el TIPO DE CAMBIO y la OPCIÓN DEL GRÁFICO se llenan a mano más abajo,
+    en el bloque "LLENAR A MANO" (no salen de ninguna fuente).
 
 NO envía nada a OneDrive ni por correo: el PPT y el PNG quedan en la carpeta "reporte_generado_propuesta".
 
@@ -29,11 +22,42 @@ import re
 import sys
 import warnings
 
-VERSION_PROP = "2026-11-24b (propuesta siniestros por línea)"
+VERSION_PROP = "2026-11-24c (proyecciones a mano en el script)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(CARPETA, "reporte_generado_propuesta")
-PROYECCION_DEF = {"Comerciales": 11_900_000.0, "Propiedad": 2_500_000.0}
 TC_DEF = 3.55
+
+# ╔════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║                                 LLENAR A MANO  (en soles)                                       ║
+# ╚════════════════════════════════════════════════════════════════════════════════════════════════╝
+#
+# 1) PROYECCIONES POR LÍNEA
+#    Cada fila es:   ("NOMBRE EN EL REPORTE",  proyección en soles,  [cómo se llama en la columna "Linea" del Excel])
+#      • La proyección va sin "S/" ni comas. El guion bajo solo separa los miles: 11_900_000 = 11,900,000.
+#      • Una línea puede sumar varias del Excel: PROPIEDAD = Vivienda + Negocios.
+#      • El orden de la lista es el orden en el reporte.
+#      • Para activar VIDA o AUTOS: borra el "#" del inicio de su fila, pon su proyección y revisa
+#        que el nombre entre corchetes sea el que aparece en la columna "Linea" del Excel
+#        (mayúsculas y tildes no importan).
+#      • Una fila con "#" adelante, o con proyección 0, no sale en el reporte.
+LINEAS = [
+    # ("VIDA",           0,  ["vida"]),
+    # ("AUTOS",          0,  ["autos", "vehiculos"]),
+    ("PROPIEDAD",  2_500_000,  ["vivienda", "negocios"]),
+    ("EMPRESAS",  11_900_000,  ["comerciales"]),
+]
+
+# 2) TIPO DE CAMBIO para pasar a soles los montos en dólares del Excel.
+#    None = usa el mismo que trae el Excel (hoy 3.55).   Para fijar otro, por ejemplo:  TIPO_CAMBIO = 3.75
+TIPO_CAMBIO = None
+
+# 3) GRÁFICO
+#    "A" = OPCIÓN 1: retenido vs. proyección
+#    "B" = OPCIÓN 2: retenido + directo vs. proyección
+#    Cuando decidan, deja la letra elegida y, si quieres, borra el bloque de la otra opción
+#    en dibujar_proyeccion() (está marcado con  >>> OPCIÓN 2 ... <<< FIN OPCIÓN 2).
+GRAFICO = "B"
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
 
 
 def _cargar(nombre_archivo, alias):
@@ -51,30 +75,16 @@ base = obs.base
 
 
 # ---------------------------------------------------------------- configuración propia
+def _norm(t):
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(t or "").strip().lower())
+    return "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+
+
 def leer_extra():
-    conf = {"tc": None, "proy": dict(PROYECCION_DEF), "grafico": "A"}
-    ruta = os.path.join(CARPETA, "configuracion.txt")
-    if os.path.exists(ruta):
-        with open(ruta, encoding="utf-8-sig") as f:
-            for raw in f:
-                k, sep, v = raw.strip().partition(":")
-                if not sep or raw.strip().startswith("#"):
-                    continue
-                k, v = k.strip().upper(), v.strip().replace(",", "").replace(" ", "")
-                try:
-                    if k == "TIPO_CAMBIO" and v:
-                        conf["tc"] = float(v)
-                    elif k == "PROYECCION_COMERCIALES" and v:
-                        conf["proy"]["Comerciales"] = float(v)
-                    elif k == "PROYECCION_PROPIEDAD" and v:
-                        conf["proy"]["Propiedad"] = float(v)
-                except ValueError:
-                    print(f"  [!] configuracion.txt: valor no numérico en {k}: {v}")
-                if k == "GRAFICO_PROPUESTA" and v:
-                    conf["grafico"] = v.upper()[:1]
-    if os.environ.get("FEN_GRAFICO"):
-        conf["grafico"] = os.environ["FEN_GRAFICO"].upper()[:1]
-    return conf
+    activas = [(nom, float(proy), {_norm(x) for x in excel}) for nom, proy, excel in LINEAS if proy and proy > 0]
+    grafico = (os.environ.get("FEN_GRAFICO") or GRAFICO or "A").strip().upper()[:1]
+    return {"tc": TIPO_CAMBIO, "lineas": activas, "grafico": grafico if grafico in "AB" else "A"}
 
 
 # ---------------------------------------------------------------- Excel de siniestros
@@ -101,15 +111,17 @@ def cargar_siniestros_proyeccion(conf):
     if None in (i_lin, i_dir, i_ret):
         print(f"  [!] {os.path.basename(ruta)}: faltan columnas Linea / MontoDirectoUSD / MontoRetencionUSD.")
         return None
-    grupos = {"Comerciales": [0, 0.0, 0.0], "Propiedad": [0, 0.0, 0.0]}
+    if not conf["lineas"]:
+        print("  [!] No hay líneas con proyección en LINEAS: el reporte sale sin la tarjeta.")
+        return None
+    grupos = {nom: [0, 0.0, 0.0] for nom, _, _ in conf["lineas"]}
+    a_grupo = {x: nom for nom, _, excel in conf["lineas"] for x in excel}
     tcs = []
     num = lambda v: float(v) if isinstance(v, (int, float)) else 0.0
     for f in filas[1:]:
         if not f or len(f) <= max(i_lin, i_dir, i_ret) or not f[i_lin]:
             continue                                     # fila de totales / filtros
-        lin = str(f[i_lin]).strip().lower()
-        g = "Comerciales" if lin.startswith("comercial") else ("Propiedad" if lin in ("vivienda", "negocios", "negocio")
-                                                                 else None)
+        g = a_grupo.get(_norm(f[i_lin]))
         if not g:
             continue
         x = grupos[g]
@@ -123,13 +135,13 @@ def cargar_siniestros_proyeccion(conf):
                     tcs.append(tc_)
                     break
     tc = conf["tc"] or (max(set(tcs), key=tcs.count) if tcs else TC_DEF)
-    origen_tc = "configuracion.txt" if conf["tc"] else ("detectado en el Excel" if tcs else "por defecto")
+    origen_tc = "fijado en el script" if conf["tc"] else ("detectado en el Excel" if tcs else "por defecto")
     res = {"archivo": os.path.basename(ruta), "tc": tc, "origen_tc": origen_tc, "grafico": conf["grafico"],
            "lineas": []}
-    for nombre, (cant, d_usd, r_usd) in grupos.items():
-        proy = conf["proy"][nombre]
+    for nombre, proy, _ in conf["lineas"]:
+        cant, d_usd, r_usd = grupos[nombre]
         res["lineas"].append({"nombre": nombre, "cant": cant, "directo": d_usd * tc, "retenido": r_usd * tc,
-                              "proy": proy, "detalle": "Vivienda + Negocios" if nombre == "Propiedad" else ""})
+                              "proy": proy})
     return res
 
 
@@ -208,13 +220,16 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
     B.texto(slide, x + w * 0.7, y, w * 0.3 - 0.25, head, f"En soles · TC {sn['tc']:.2f}", 8, B.P_GREY,
             align=B.PP_ALIGN.RIGHT, anchor=B.MSO_ANCHOR.MIDDLE)
 
-    con_directo = sn["grafico"] == "B"
+    con_directo = sn["grafico"] == "B"        # OPCIÓN 2 (si se quedan con la 1, esto queda siempre en False)
     C_RET = B.RGBColor(0x0A, 0x5F, 0xA8)      # retenido: azul oscuro
     C_DIR = B.RGBColor(0x8F, 0xC3, 0xEA)      # directo: azul claro (mismo tono)
     C_TRK = B.RGBColor(0xE4, 0xEA, 0xF2)      # proyección: riel gris
     x0, ancho = x + 0.3, w - 0.6
     alto_fila = (h - head - 0.12) / len(sn["lineas"])    # filas más separadas
     yy = y + head + 0.1
+    if len(sn["lineas"]) > 2:                            # 3 o 4 líneas: versión compacta para que entre todo
+        _filas_compactas(slide, sn, x0, yy, ancho, alto_fila, con_directo, C_RET, C_DIR, C_TRK)
+        return
     for ln in sn["lineas"]:
         # fila 1: nombre + n.º de siniestros | proyección
         B.texto(slide, x0, yy, ancho * 0.6, 0.2,
@@ -228,10 +243,13 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
         by, bh = yy + 0.21, 0.15
         trk = B.caja(slide, x0, by, ancho, bh, C_TRK, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Proyeccion " + ln["nombre"])
         trk.adjustments[0] = 0.5
+        # >>> OPCIÓN 2: barra del monto DIRECTO (azul claro). Borrar este bloque si se quedan con la opción 1.
         if con_directo and ln["directo"] > 0:
             wd = max(0.05, ancho * min(1, ln["directo"] / ln["proy"]))
             bd = B.caja(slide, x0, by, wd, bh, C_DIR, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Directo " + ln["nombre"])
             bd.adjustments[0] = 0.5
+        # <<< FIN OPCIÓN 2
+        # Opción 1 y 2: barra del monto RETENIDO (azul oscuro)
         if ln["retenido"] > 0:
             wr = max(0.05, ancho * min(1, ln["retenido"] / ln["proy"]))
             br = B.caja(slide, x0, by, wr, bh, C_RET, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Retenido " + ln["nombre"])
@@ -239,12 +257,49 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
         # fila 3: valores (texto en tinta; el cuadrado de color da la identidad)
         partes = [("■ ", True, C_RET), ("Retenido ", False, B.P_GREY), (soles(ln["retenido"]), True, B.P_INK),
                   (f" ({pct(ln['retenido'], ln['proy'])})", False, B.P_INK)]
+        # >>> OPCIÓN 2: valor del DIRECTO. Borrar este bloque si se quedan con la opción 1.
         if con_directo:
             partes += [("     ■ ", True, C_DIR), ("Directo ", False, B.P_GREY), (soles(ln["directo"]), True, B.P_INK),
                        (f" ({pct(ln['directo'], ln['proy'])})", False, B.P_INK)]
+        # <<< FIN OPCIÓN 2
         B.texto(slide, x0, by + bh + 0.03, ancho, 0.18, [partes], 8.5, nombre="Valores " + ln["nombre"])
         yy += alto_fila
 
+
+
+def _filas_compactas(slide, sn, x0, yy, ancho, alto_fila, con_directo, C_RET, C_DIR, C_TRK):
+    """Con 3 o 4 líneas cada fila ocupa dos renglones: nombre | proyección, y la barra con los montos al costado."""
+    B = base
+    ab = ancho * (0.28 if con_directo else 0.50)          # largo de la barra; el resto, los montos
+    for ln in sn["lineas"]:
+        B.texto(slide, x0, yy, ancho * 0.6, 0.19,
+                [[(ln["nombre"].upper(), "xb", B.P_INK), (f"  {ln['cant']} siniestros", False, B.P_GREY)]], 8.5,
+                nombre="Fila " + ln["nombre"])
+        B.texto(slide, x0 + ancho * 0.6, yy, ancho * 0.4, 0.19,
+                [[("Proyección ", False, B.P_GREY), (soles(ln["proy"]), True, B.P_INK)]], 8.5, align=B.PP_ALIGN.RIGHT)
+        by, bh = yy + 0.22, 0.12
+        trk = B.caja(slide, x0, by, ab, bh, C_TRK, None, B.MSO_SHAPE.ROUNDED_RECTANGLE, "Proyeccion " + ln["nombre"])
+        trk.adjustments[0] = 0.5
+        # >>> OPCIÓN 2: barra del monto DIRECTO. Borrar este bloque si se quedan con la opción 1.
+        if con_directo and ln["directo"] > 0:
+            bd = B.caja(slide, x0, by, max(0.05, ab * min(1, ln["directo"] / ln["proy"])), bh, C_DIR, None,
+                        B.MSO_SHAPE.ROUNDED_RECTANGLE, "Directo " + ln["nombre"])
+            bd.adjustments[0] = 0.5
+        # <<< FIN OPCIÓN 2
+        if ln["retenido"] > 0:
+            br = B.caja(slide, x0, by, max(0.05, ab * min(1, ln["retenido"] / ln["proy"])), bh, C_RET, None,
+                        B.MSO_SHAPE.ROUNDED_RECTANGLE, "Retenido " + ln["nombre"])
+            br.adjustments[0] = 0.5
+        partes = [("■ ", True, C_RET), ("Ret. ", False, B.P_GREY), (soles(ln["retenido"]), True, B.P_INK),
+                  (f" ({pct(ln['retenido'], ln['proy'])})", False, B.P_INK)]
+        # >>> OPCIÓN 2: valor del DIRECTO. Borrar este bloque si se quedan con la opción 1.
+        if con_directo:
+            partes += [("   ■ ", True, C_DIR), ("Dir. ", False, B.P_GREY), (soles(ln["directo"]), True, B.P_INK),
+                       (f" ({pct(ln['directo'], ln['proy'])})", False, B.P_INK)]
+        # <<< FIN OPCIÓN 2
+        B.texto(slide, x0 + ab + 0.1, by - 0.04, ancho - ab - 0.1, 0.2, [partes], 7.5,
+                anchor=B.MSO_ANCHOR.MIDDLE, nombre="Valores " + ln["nombre"])
+        yy += alto_fila
 
 
 # ---------------------------------------------------------------- arranque
@@ -279,7 +334,8 @@ def main():
         sn = cargar_siniestros_proyeccion(conf)
         if sn:
             d["siniestros"] = sn
-            d["siniestros_alto"] = 1.8
+            n = len(sn["lineas"])
+            d["siniestros_alto"] = 0.5 + (0.65 if n <= 2 else 0.44) * n     # 2 líneas = 1.8"; 4 líneas = 2.26"
             print(f"[OK] SINIESTROS ({sn['archivo']}) · TC {sn['tc']:.2f} ({sn['origen_tc']}) · gráfico {sn['grafico']}")
             for ln in sn["lineas"]:
                 print(f"     {ln['nombre']}: {ln['cant']} siniestros · retenido {soles(ln['retenido'])} "

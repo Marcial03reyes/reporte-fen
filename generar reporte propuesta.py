@@ -13,7 +13,7 @@ PROYECCIÓN, con una barra horizontal cuya longitud total es la proyección.
 
 NO envía nada a OneDrive ni por correo: el PPT y el PNG quedan en la carpeta "reporte_generado_propuesta".
 
-Uso:  python "generar reporte propuesta.py"          (usa mensaje_observatorio.txt)
+Uso:  python "generar reporte propuesta.py"          (usa mensaje_observatorio.txt; genera la opción 1 y la 2)
 Necesita en la misma carpeta: "generar reporte observatorio.py" y "generar reporte fen.py".
 """
 import importlib.util
@@ -22,7 +22,7 @@ import re
 import sys
 import warnings
 
-VERSION_PROP = "2026-11-24c (proyecciones a mano en el script)"
+VERSION_PROP = "2026-11-24d (genera opción 1 y 2)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(CARPETA, "reporte_generado_propuesta")
 TC_DEF = 3.55
@@ -51,12 +51,13 @@ LINEAS = [
 #    None = usa el mismo que trae el Excel (hoy 3.55).   Para fijar otro, por ejemplo:  TIPO_CAMBIO = 3.75
 TIPO_CAMBIO = None
 
-# 3) GRÁFICO
-#    "A" = OPCIÓN 1: retenido vs. proyección
-#    "B" = OPCIÓN 2: retenido + directo vs. proyección
-#    Cuando decidan, deja la letra elegida y, si quieres, borra el bloque de la otra opción
-#    en dibujar_proyeccion() (está marcado con  >>> OPCIÓN 2 ... <<< FIN OPCIÓN 2).
-GRAFICO = "B"
+# 3) OPCIONES DEL GRÁFICO: cada vez que corres el script se genera un PPT y un PNG por cada opción de esta lista.
+#    "1" = OPCIÓN 1: retenido vs. proyección                → archivos ..._Opcion1.pptx / .png
+#    "2" = OPCIÓN 2: retenido + directo vs. proyección      → archivos ..._Opcion2.pptx / .png
+#    Cuando decidan, deja solo la elegida, por ejemplo  OPCIONES = ["1"]  (y entonces salen sin el sufijo).
+#    Si se quedan con la 1, también puedes borrar en el código los bloques marcados
+#    >>> OPCIÓN 2 ... <<< FIN OPCIÓN 2.
+OPCIONES = ["1", "2"]
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 
 
@@ -81,10 +82,13 @@ def _norm(t):
     return "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
 
 
+_OPCION_ACTUAL = ["2"]          # la cambia main() en cada vuelta
+
+
 def leer_extra():
+    # solo las filas de LINEAS sin "#" y con proyección > 0; las demás no salen ni en el gráfico
     activas = [(nom, float(proy), {_norm(x) for x in excel}) for nom, proy, excel in LINEAS if proy and proy > 0]
-    grafico = (os.environ.get("FEN_GRAFICO") or GRAFICO or "A").strip().upper()[:1]
-    return {"tc": TIPO_CAMBIO, "lineas": activas, "grafico": grafico if grafico in "AB" else "A"}
+    return {"tc": TIPO_CAMBIO, "lineas": activas, "grafico": "B" if _OPCION_ACTUAL[0] == "2" else "A"}
 
 
 # ---------------------------------------------------------------- Excel de siniestros
@@ -304,7 +308,6 @@ def _filas_compactas(slide, sn, x0, yy, ancho, alto_fila, con_directo, C_RET, C_
 
 # ---------------------------------------------------------------- arranque
 def main():
-    conf = leer_extra()
     leer_obs = base.leer_datos             # lo deja puesto obs.main(); aquí se envuelve
 
     def leer_con_siniestros(ruta):
@@ -331,12 +334,12 @@ def main():
         d["p1"] = d["p1"] + unidos
         d["calor"], d["oleaje"] = [], []
         d["avisos_derecha"] = True      # Estatus = hechos reportados; derecha = pronóstico + avisos (calor, oleaje)
-        sn = cargar_siniestros_proyeccion(conf)
+        sn = cargar_siniestros_proyeccion(leer_extra())     # se lee en cada opción
         if sn:
             d["siniestros"] = sn
             n = len(sn["lineas"])
             d["siniestros_alto"] = 0.5 + (0.65 if n <= 2 else 0.44) * n     # 2 líneas = 1.8"; 4 líneas = 2.26"
-            print(f"[OK] SINIESTROS ({sn['archivo']}) · TC {sn['tc']:.2f} ({sn['origen_tc']}) · gráfico {sn['grafico']}")
+            print(f"[OK] SINIESTROS ({sn['archivo']}) · TC {sn['tc']:.2f} ({sn['origen_tc']}) · opción {'2' if sn['grafico'] == 'B' else '1'}")
             for ln in sn["lineas"]:
                 print(f"     {ln['nombre']}: {ln['cant']} siniestros · retenido {soles(ln['retenido'])} "
                       f"({pct(ln['retenido'], ln['proy'])}) · directo {soles(ln['directo'])} "
@@ -358,7 +361,33 @@ def main():
     if len(sys.argv) == 1 or sys.argv[1].startswith("-"):
         sys.argv.insert(1, os.path.join(CARPETA, "mensaje_observatorio.txt"))
     base.leer_datos = leer_con_siniestros
-    base.main()
+
+    opciones = [o for o in (str(x).strip() for x in OPCIONES) if o in ("1", "2")] or ["2"]
+    if os.environ.get("FEN_GRAFICO"):                       # solo para pruebas
+        opciones = ["1" if os.environ["FEN_GRAFICO"].upper().startswith(("A", "1")) else "2"]
+    # el mismo número de reporte para todas las opciones (si NUMERO está vacío en el txt)
+    sig_orig, num = base.siguiente_numero, []
+    base.siguiente_numero = lambda carpeta: num[0] if num else (num.append(sig_orig(carpeta)) or num[0])
+    abrir = getattr(os, "startfile", None)
+    for i, op in enumerate(opciones):
+        _OPCION_ACTUAL[0] = op
+        if len(opciones) > 1:
+            print(f"\n================ OPCIÓN {op} ================")
+        antes = {f: os.path.getmtime(os.path.join(SALIDA, f)) for f in os.listdir(SALIDA)}
+        if abrir and i < len(opciones) - 1:
+            os.startfile = lambda *a, **k: None             # la carpeta se abre una sola vez, al final
+        try:
+            base.main()
+        finally:
+            if abrir:
+                os.startfile = abrir
+        if len(opciones) > 1:                                # agrega el sufijo _Opcion1 / _Opcion2
+            for f in os.listdir(SALIDA):
+                nuevo = f not in antes or os.path.getmtime(os.path.join(SALIDA, f)) != antes[f]
+                if nuevo and f.startswith("Reporte_FEN_") and "_Opcion" not in f and f.endswith((".pptx", ".png")):
+                    raiz, ext = os.path.splitext(f)
+                    os.replace(os.path.join(SALIDA, f), os.path.join(SALIDA, f"{raiz}_Opcion{op}{ext}"))
+                    print(f"  → {raiz}_Opcion{op}{ext}")
 
 
 if __name__ == "__main__":

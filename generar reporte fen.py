@@ -1799,7 +1799,11 @@ def construir(d, salida_pptx, borrador=False):
         o_ = ("OLEAJE ANÓMALO", _ola, (0, 140, 160), d["oleaje"])
         extras.append((o_, (o_[0], RGBColor(0x00, 0x74, 0x86), o_[3])))
     secs_base, bloques_base = secs, bloques
-    if d.get("calor"):                 # siempre en el Estatus del día, al final (después de ríos y huaicos)
+    if d.get("calor") and d.get("calor_movible"):   # (propuesta) puede ir a la columna derecha si no entra
+        c_ = ("CALOR Y RADIACIÓN UV", _sol, (230, 120, 20), d["calor"])
+        extras.append((c_, (c_[0], RGBColor(0xC2, 0x5E, 0x08), c_[3])))
+        secs_fin = []
+    elif d.get("calor"):               # siempre en el Estatus del día, al final (después de ríos y huaicos)
         c_ = ("CALOR Y RADIACIÓN UV", _sol, (230, 120, 20), d["calor"])
         secs_fin = [c_]
     else:
@@ -1823,7 +1827,7 @@ def construir(d, salida_pptx, borrador=False):
         EXTRA_AG_TOTAL = 2.12 + (0.34 if hay_casos else 0.0) - 0.6
     Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG_TOTAL
     # Con siniestros: la columna derecha se parte en dos tarjetas (Pronósticos arriba, Siniestros FEN abajo)
-    ALTO_SIN = 1.55
+    ALTO_SIN = d.get("siniestros_alto", 1.55)
     BOTTOM_R = (BOTTOM - ALTO_SIN - 0.16) if d.get("siniestros") else BOTTOM
     ry0, ry1 = TOP + HEAD + 0.16, (BOTTOM_R - 0.14) if d.get("siniestros") else 6.02
     MIN_FS = 7.5

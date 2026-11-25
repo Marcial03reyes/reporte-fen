@@ -29,7 +29,7 @@ import re
 import sys
 import warnings
 
-VERSION_PROP = "2026-11-24 (propuesta siniestros vs. proyección)"
+VERSION_PROP = "2026-11-24b (propuesta siniestros por línea)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(CARPETA, "reporte_generado_propuesta")
 PROYECCION_DEF = {"Comerciales": 11_900_000.0, "Propiedad": 2_500_000.0}
@@ -203,7 +203,7 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
     hb = B.caja(slide, x, y, w, head, B.P_TINT, None, B.MSO_SHAPE.ROUND_2_SAME_RECTANGLE, "Tarjeta siniestros encabezado")
     hb.adjustments[0] = 0.32
     hb.adjustments[1] = 0.0
-    B.texto(slide, x + 0.3, y, w * 0.75, head, "SINIESTROS VS. PROYECCIÓN", 12, B.P_BLUE_DK, "xb",
+    B.texto(slide, x + 0.3, y, w * 0.75, head, "SINIESTROS POR LÍNEA", 12, B.P_BLUE_DK, "xb",
             anchor=B.MSO_ANCHOR.MIDDLE)
     B.texto(slide, x + w * 0.7, y, w * 0.3 - 0.25, head, f"En soles · TC {sn['tc']:.2f}", 8, B.P_GREY,
             align=B.PP_ALIGN.RIGHT, anchor=B.MSO_ANCHOR.MIDDLE)
@@ -213,13 +213,13 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
     C_DIR = B.RGBColor(0x8F, 0xC3, 0xEA)      # directo: azul claro (mismo tono)
     C_TRK = B.RGBColor(0xE4, 0xEA, 0xF2)      # proyección: riel gris
     x0, ancho = x + 0.3, w - 0.6
-    alto_fila = (h - head - 0.1) / len(sn["lineas"])
-    yy = y + head + 0.06
+    alto_fila = (h - head - 0.12) / len(sn["lineas"])    # filas más separadas
+    yy = y + head + 0.1
     for ln in sn["lineas"]:
         # fila 1: nombre + n.º de siniestros | proyección
         B.texto(slide, x0, yy, ancho * 0.6, 0.2,
                 [[(ln["nombre"].upper(), "xb", B.P_INK),
-                  (f"  {ln['cant']} siniestros" + (" · Viv. + Neg." if ln["detalle"] else ""), False,
+                  (f"  {ln['cant']} siniestros" + "", False,
                    B.P_GREY)]], 9, nombre="Fila " + ln["nombre"])
         B.texto(slide, x0 + ancho * 0.6, yy, ancho * 0.4, 0.2,
                 [[("Proyección ", False, B.P_GREY), (soles(ln["proy"]), True, B.P_INK)]], 9,
@@ -262,11 +262,24 @@ def main():
                             key=lambda t: "dptos." not in t)     # el aviso que cubre más departamentos va primero
         for k in ("lluvias", "vias", "rios", "huaicos", "oleaje", "p1"):
             d[k] = [compactar(it) for it in d.get(k) or []]
-        d["calor_movible"] = True
+        # Calor y oleaje van en la misma lista del pronóstico (un solo título = más espacio para todo):
+        #   "Calor (costa y sierra): …", "Oleaje (Lima (Costa Verde)): …"
+        base.repartir_adicionales(d)               # las alertas del txt (Costa Verde) entran antes de unir
+        unidos = []
+        for it in d.get("calor") or []:
+            etq, _, txt = it.partition(":")
+            unidos.append(f"Calor en {etq.strip().lower()}: {txt.strip()}")
+        for it in d.get("oleaje") or []:
+            etq, _, txt = it.partition(":")
+            lugar = "el litoral" if etq.strip().lower() == "litoral" else etq.strip()
+            unidos.append(f"Oleaje en {lugar}: {txt.strip()}")
+        d["p1"] = d["p1"] + unidos
+        d["calor"], d["oleaje"] = [], []
+        d["avisos_derecha"] = True      # Estatus = hechos reportados; derecha = pronóstico + avisos (calor, oleaje)
         sn = cargar_siniestros_proyeccion(conf)
         if sn:
             d["siniestros"] = sn
-            d["siniestros_alto"] = 1.6
+            d["siniestros_alto"] = 1.8
             print(f"[OK] SINIESTROS ({sn['archivo']}) · TC {sn['tc']:.2f} ({sn['origen_tc']}) · gráfico {sn['grafico']}")
             for ln in sn["lineas"]:
                 print(f"     {ln['nombre']}: {ln['cant']} siniestros · retenido {soles(ln['retenido'])} "

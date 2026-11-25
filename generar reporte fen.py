@@ -1795,13 +1795,17 @@ def construir(d, salida_pptx, borrador=False):
     if d.get("huaicos"):
         h_ = ("HUAICOS Y DESLIZAMIENTOS", _huaico, G_AMBER, d["huaicos"])
         extras.append((h_, (h_[0], WARN_FG, h_[3])))
-    if d.get("oleaje"):
+    avisos_derecha = d.get("avisos_derecha")        # (propuesta) calor y oleaje juntos bajo el pronóstico
+    if d.get("oleaje") and not avisos_derecha:
         o_ = ("OLEAJE ANÓMALO", _ola, (0, 140, 160), d["oleaje"])
         extras.append((o_, (o_[0], RGBColor(0x00, 0x74, 0x86), o_[3])))
+    if avisos_derecha:
+        if d.get("calor"):
+            bloques.append((d.get("titulo_calor", "CALOR Y RADIACIÓN UV"), RGBColor(0xC2, 0x5E, 0x08), d["calor"]))
+        if d.get("oleaje"):
+            bloques.append(("OLEAJE ANÓMALO", RGBColor(0x00, 0x74, 0x86), d["oleaje"]))
     secs_base, bloques_base = secs, bloques
-    if d.get("calor") and d.get("calor_movible"):   # (propuesta) puede ir a la columna derecha si no entra
-        c_ = ("CALOR Y RADIACIÓN UV", _sol, (230, 120, 20), d["calor"])
-        extras.append((c_, (c_[0], RGBColor(0xC2, 0x5E, 0x08), c_[3])))
+    if avisos_derecha:
         secs_fin = []
     elif d.get("calor"):               # siempre en el Estatus del día, al final (después de ríos y huaicos)
         c_ = ("CALOR Y RADIACIÓN UV", _sol, (230, 120, 20), d["calor"])
@@ -1931,7 +1935,8 @@ def construir(d, salida_pptx, borrador=False):
 
     # ---- Tarjetas blancas con encabezado tenue
     for x, w, titulo, nom, color in ((LX, LW, "ESTATUS DEL DÍA", "Tarjeta estatus", P_BLUE_DK),
-                                     (RX, RW, "PRONÓSTICOS" if len(bloques) == len(bloques_base)
+                                     (RX, RW, "PRONÓSTICOS Y AVISOS" if avisos_derecha else
+                                      "PRONÓSTICOS" if len(bloques) == len(bloques_base)
                                       else "PRONÓSTICOS Y AFECTACIONES", "Tarjeta pronostico", P_PINK)):
         c = caja(slide, x, TOP, w, (BOTTOM if x == LX else BOTTOM_R) - TOP, WHITE, P_LINE,
                  MSO_SHAPE.ROUNDED_RECTANGLE, nom)

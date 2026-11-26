@@ -24,7 +24,7 @@ import re
 import sys
 import warnings
 
-VERSION_PROP = "2026-11-25 (impacto neto de reaseguro y bruto vs. estimado)"
+VERSION_PROP = "2026-11-26 (opción 1 = total; bruto arriba, neto abajo)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(CARPETA, "reporte_generado_propuesta")
 TC_DEF = 3.55
@@ -56,11 +56,12 @@ LINEAS = [
 TIPO_CAMBIO = 3.50
 
 # 3) OPCIONES: cada vez que corres el script se genera un PPT y un PNG por cada opción de esta lista.
-#    "1" = OPCIÓN 1: solo impacto neto de reaseguro (real vs. estimado)      → ..._Opcion1.pptx / .png
-#    "2" = OPCIÓN 2: impacto neto de reaseguro + impacto bruto (dos barras)  → ..._Opcion2.pptx / .png
+#    "1" = OPCIÓN 1: TOTAL de todas las líneas (suma), con impacto bruto y neto  → ..._Opcion1.pptx / .png
+#    "2" = OPCIÓN 2: por LÍNEA de seguro, con impacto bruto y neto              → ..._Opcion2.pptx / .png
+#    En ambas va primero la barra de impacto bruto y debajo la de impacto neto de reaseguro.
 #    Cuando decidan, deja solo la elegida, por ejemplo  OPCIONES = ["2"]  (y entonces sale sin el sufijo).
-#    Si se quedan con la 1, también puedes borrar en el código los bloques marcados
-#    >>> OPCIÓN 2 ... <<< FIN OPCIÓN 2.
+#    Si se quedan con la 2, también puedes borrar en el código el bloque marcado
+#    >>> OPCIÓN 1 ... <<< FIN OPCIÓN 1.
 OPCIONES = ["1", "2"]
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -229,13 +230,17 @@ C_RIEL = (0xE4, 0xEA, 0xF2)     # estimado: riel gris
 
 
 def medidas(sn):
-    """Las barras que lleva cada línea según la opción."""
-    m = [("Impacto neto de reaseguro", "neto", "neto_est", C_NETO)]
-    # >>> OPCIÓN 2: segunda barra con el impacto bruto. Borrar este bloque si se quedan con la opción 1.
-    if sn["grafico"] == "B":
-        m.append(("Impacto bruto", "bruto", "bruto_est", C_BRUTO))
-    # <<< FIN OPCIÓN 2
-    return m
+    """Las barras de cada fila (en las dos opciones): primero bruto, debajo neto de reaseguro."""
+    return [("Impacto bruto", "bruto", "bruto_est", C_BRUTO),
+            ("Impacto neto de reaseguro", "neto", "neto_est", C_NETO)]
+
+
+def total_de(sn):
+    """OPCIÓN 1: una sola fila con la suma de todas las líneas activas."""
+    ls = sn["lineas"]
+    return [{"nombre": "TOTAL", "detalle": " + ".join(l_["nombre"].capitalize() for l_ in ls),
+             "cant": sum(l_["cant"] for l_ in ls),
+             **{k: sum(l_[k] for l_ in ls) for k in ("bruto", "bruto_est", "neto", "neto_est")}}]
 
 
 def alto_tarjeta(sn):
@@ -272,7 +277,7 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
     hb = B.caja(slide, x, y, w, head, B.P_TINT, None, B.MSO_SHAPE.ROUND_2_SAME_RECTANGLE, "Tarjeta siniestros encabezado")
     hb.adjustments[0] = 0.32
     hb.adjustments[1] = 0.0
-    B.texto(slide, x + 0.3, y, w * 0.75, head, "SINIESTROS POR LÍNEA", 12, B.P_BLUE_DK, "xb",
+    B.texto(slide, x + 0.3, y, w * 0.75, head, "SINIESTROS TOTALES" if sn.get("por_linea") else "SINIESTROS POR LÍNEA", 12, B.P_BLUE_DK, "xb",
             anchor=B.MSO_ANCHOR.MIDDLE)
     B.texto(slide, x + w * 0.55, y, w * 0.45 - 0.25, head, f"En soles · TC {sn['tc']:.2f}", 8,
             B.P_GREY, align=B.PP_ALIGN.RIGHT, anchor=B.MSO_ANCHOR.MIDDLE)
@@ -284,7 +289,8 @@ def dibujar_proyeccion(slide, sn, x, y, w, h):
     yy = y + head + 0.1
     for ln in sn["lineas"]:
         B.texto(slide, x0, yy, ancho, 0.2,
-                [[(ln["nombre"].upper(), "xb", B.P_INK), (f"  {ln['cant']} siniestros", False, B.P_GREY)]],
+                [[(ln["nombre"].upper(), "xb", B.P_INK),
+                  (f"  {ln['cant']} siniestros" + (f" · {ln['detalle']}" if ln.get("detalle") else ""), False, B.P_GREY)]],
                 8.5 if compacta else 9, nombre="Fila " + ln["nombre"])
         sy = yy + (0.2 if compacta else 0.22)
         for etiqueta, clave, clave_est, color in ms:
@@ -338,10 +344,15 @@ def main():
         d["avisos_derecha"] = True      # Estatus = hechos reportados; derecha = pronóstico + avisos (calor, oleaje)
         sn = cargar_siniestros_proyeccion(leer_extra())     # se lee en cada opción
         if sn:
+            # >>> OPCIÓN 1: todo sumado en una fila TOTAL. Borrar este bloque si se quedan con la opción 2.
+            if sn["grafico"] == "A":
+                sn["por_linea"] = sn["lineas"]
+                sn["lineas"] = total_de(sn)
+            # <<< FIN OPCIÓN 1
             d["siniestros"] = sn
             d["siniestros_alto"] = alto_tarjeta(sn)
             print(f"[OK] SINIESTROS ({sn['archivo']}) · TC {sn['tc']:.2f} ({sn['origen_tc']}) · opción {'2' if sn['grafico'] == 'B' else '1'}")
-            for ln in sn["lineas"]:
+            for ln in sn.get("por_linea", []) + sn["lineas"]:
                 print(f"     {ln['nombre']}: {ln['cant']} siniestros · neto (retenido) {soles(ln['neto'])} de "
                       f"{soles(ln['neto_est'])} ({pct(ln['neto'], ln['neto_est'])}) · bruto (directo) "
                       f"{soles(ln['bruto'])} de {soles(ln['bruto_est'])} ({pct(ln['bruto'], ln['bruto_est'])})")

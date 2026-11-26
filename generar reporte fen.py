@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-24c (oleaje y alertas adicionales; siniestros en stand by)"
+VERSION = "2026-11-26 (recorte: primero lo que ya está en el mapa)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -1923,12 +1923,22 @@ def construir(d, salida_pptx, borrador=False):
         # más larga y se vuelve a armar la diapositiva.
         # primero se recortan los hechos (la línea más antigua de la sección más larga); el pronóstico al final
         # orden: hechos más antiguos -> pronóstico ("Otros avisos" primero) -> avisos de calor/oleaje al final
+        # 0) lo que ya se ve en el mapa o es secundario en el pronóstico: "Otros avisos" y los niveles de lluvia
+        p1 = d.get("p1") or []
+        sobra = next((i for pre in ("Otros avisos", "Lluvias:") for i, x in enumerate(p1) if x.startswith(pre)), None)
+        if sobra is not None and len(p1) > 1:
+            quitado = p1.pop(sobra)
+            print(f"  Aviso: no entraba todo en la diapositiva; se omitió de «p1»: {quitado[:70]}…")
+            return construir(d, salida_pptx, borrador)
         largas = [k for k in ("lluvias", "vias", "rios", "huaicos") if len(d.get(k) or []) > 1] \
             or [k for k in ("p1", "medidas", "recomendaciones") if len(d.get(k) or []) > 1] \
             or [k for k in ("oleaje", "calor") if len(d.get(k) or []) > 1]
         if largas:
             k = max(largas, key=lambda k_: (len(d[k_]), sum(len(x) for x in d[k_])))
-            quitado = d[k].pop()
+            # en el pronóstico, lo último que se quita es Costa/Sierra/Quebradas
+            i_q = next((i for i in range(len(d[k]) - 1, -1, -1)
+                        if not re.match(r"(Costa|Sierra|Selva|Quebradas)\b", d[k][i])), -1) if k == "p1" else -1
+            quitado = d[k].pop(i_q)
             print(f"  Aviso: no entraba todo en la diapositiva; se omitió de «{k}»: {quitado[:70]}…")
             return construir(d, salida_pptx, borrador)
     RX = LX + LW + GAP

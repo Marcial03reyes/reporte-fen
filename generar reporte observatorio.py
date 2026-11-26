@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-24 (Observatorio)"
+VERSION_OBS = "2026-11-26 (Observatorio · prensa verificada y calor nocturno)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -218,16 +218,19 @@ def hechos_oficiales(snap, desde, hasta):
                 texto_final = recortar(cuerpo, 150).rstrip(".…") + ". " + recortar(clave_v, 120)
         secciones[seccion].append({"t": t, "cuenta": CUENTAS_OFICIALES[cuenta], "lugar": lugar, "deps": deps,
                                    "texto": texto_final})
+    hechos_prensa(snap, desde, hasta, secciones, descartes)
     # Una quebrada o huaico que corta una vía también va (corto) a Vías restringidas
     for k in ("rios", "huaicos"):
         for h in list(secciones[k]):
             m = re.search(r"(interrump|restring|bloque|cerrad)\w*\s+(?:el tr[aá]nsito en\s+)?(?:la |el )?"
-                          r"((?:v[ií]a|carretera|tramo|puente)\s+[^,.;]+)", h["texto"], re.I)
+                          r"((?:v[ií]a|carretera|tramo|puente|km)\s+[^,.;]+)", h["texto"], re.I)
             if m:
                 estado = {"interrump": "interrumpido", "restring": "restringido", "bloque": "bloqueado",
                           "cerrad": "cerrado"}[m.group(1).lower()]
-                secciones["vias"].append({**h, "texto": f"Tránsito {estado} en la {m.group(2).strip()} "
-                                                        f"({'por quebradas' if k == 'rios' else 'por huaico'})."})
+                lugar_v = m.group(2).strip()
+                art = "la" if re.match(r"v[ií]a|carretera", lugar_v, re.I) else "el"
+                secciones["vias"].append({**h, "texto": f"Tránsito {estado} en {art} {lugar_v} "
+                                                        f"({'por quebradas' if k == 'rios' else 'por deslizamiento' if re.search(r'desliz', h['texto'], re.I) else 'por huaico'})."})
     # Lluvias: SENAMHI publica varios balances al día; queda el más reciente de cada departamento
     # (una publicación más antigua se descarta si todos sus departamentos ya salen en una más nueva).
     # Ríos, huaicos y vías: cada publicación es un hecho distinto; solo se quitan textos repetidos.
@@ -247,6 +250,44 @@ def hechos_oficiales(snap, desde, hasta):
     return secciones, descartes
 
 
+TIPO_PRENSA = {"oleaje": "oleaje", "marejada": "oleaje", "deslizamiento": "huaicos", "huaico": "huaicos",
+               "derrumbe": "huaicos", "quebrada": "rios", "rio": "rios", "desborde": "rios", "inundacion": "rios",
+               "lluvia": "lluvias", "via": "vias", "transito": "vias"}
+
+
+def hechos_prensa(snap, desde, hasta, secciones, descartes):
+    """Notas de prensa que el Observatorio ya revisó y marcó como HECHO (sources.pressEditorialReviews):
+    cada una trae los hechos ya extraídos (tipo, departamento, localidad, cuándo ocurrió)."""
+    for rv in (snap.get("sources") or {}).get("pressEditorialReviews") or []:
+        if (rv.get("decision") or "").lower() != "hecho":
+            continue
+        for h in rv.get("hechos") or []:
+            texto = (h.get("hecho") or "").strip()
+            dep = (h.get("departamento") or "").strip()
+            if not texto or not dep:
+                continue
+            oc = h.get("ocurrido") or ""
+            t = a_lima(oc) if len(oc) > 10 else None
+            if t is None and len(oc) == 10:                 # solo fecha: vale si ese día cae en la ventana
+                t = a_lima(rv.get("publicado")) if desde.strftime("%Y-%m-%d") <= oc <= hasta.strftime("%Y-%m-%d") else None
+                if t is None:
+                    t = desde - timedelta(days=1)
+            t = t or a_lima(rv.get("publicado"))            # sin fecha del hecho: la de la nota
+            if not t or not (desde <= t <= hasta):
+                descartes["fuera de ventana"] += 1
+                continue
+            tipo = base._sin_tildes((h.get("tipo") or "").lower())
+            seccion = next((v for k, v in TIPO_PRENSA.items() if k in tipo), None) or \
+                next((k for k, rx in SECCION_DE if rx.search(texto)), "rios")
+            secciones.setdefault(seccion, []).append({
+                "t": t, "cuenta": "Prensa verificada", "lugar": dep, "deps": {base._sin_tildes(dep)},
+                "localidad": (h.get("localidad") or "").split(",")[0].strip(),
+                "texto": recortar(texto[:1].upper() + texto[1:])})
+
+
+SEDES_DPTO = ("Lima", "Piura", "Lambayeque", "La Libertad", "Junín", "Arequipa", "Cusco")
+
+
 def calor_uv(snap, dia):
     """Sección 'Calor y radiación UV': un ítem por aviso de calor del SENAMHI vigente hoy, con las máximas
     previstas y dónde está en nivel extremo (rojo); si no llega a rojo, dónde está en alto (naranja)."""
@@ -260,6 +301,7 @@ def calor_uv(snap, dia):
         zona = re.search(r"\bEN LA ([A-ZÁÉÍÓÚÑ ]+?)(?:\s*\(|\.|$)", ev.split(".")[0])
         zona = re.sub(r"\s+y en la\s+", " y ", zona.group(1).lower().strip()) if zona else ""
         temps = [int(t_) for t_ in re.findall(r"(\d{2})\s*°\s*C", ev)]
+        nocturna = "NOCTURNA" in ev.upper()
         top = max((base.NIVEL_ORDEN[r["nivel"]] for r in fa), default=0)
         nv = next(k for k, v in base.NIVEL_ORDEN.items() if v == top)
         deps = {}
@@ -270,15 +312,18 @@ def calor_uv(snap, dia):
         nombres = sorted(deps, key=base._sin_tildes)
         if len(nombres) <= 2:          # pocos departamentos: se nombran las provincias, como el aviso
             lugares = "; ".join(f"{d_} ({base._unir_y(sorted(deps[d_]))})" for d_ in nombres)
+        elif len(nombres) > 6:         # lista larga: el total y los departamentos con sede de Pacífico
+            con_sede = [x_ for x_ in SEDES_DPTO if x_ in nombres][:3]
+            lugares = f"{len(nombres)} dptos." + (f" (incl. {base._unir_y(con_sede)})" if con_sede else "")
         else:
             lugares = base._unir_y(nombres)
         fin = max((a_lima(r.get("fin_aviso")) for r in fa if a_lima(r.get("fin_aviso"))), default=None)
-        txt = (f"{zona.capitalize()}: " if zona else "") + \
-              (f"máximas de hasta {max(temps)} °C. " if temps else "") + \
+        txt = (f"{zona.capitalize()}{' (noches)' if nocturna else ''}: " if zona else "") + \
+              (f"{'mínimas' if nocturna else 'máximas'} de hasta {max(temps)} °C. " if temps else "") + \
               f"Nivel {base.INTENSIDAD[nv].lower()} ({nv.lower()}) en {lugares}" + \
               (f" (aviso SENAMHI {num}, hasta {fin:%d/%m})." if fin else f" (aviso SENAMHI {num}).")
-        items.append(txt[:1].upper() + txt[1:])
-    return items
+        items.append((nocturna, txt[:1].upper() + txt[1:]))
+    return [t_ for _, t_ in sorted(items, key=lambda x: x[0])]      # primero el calor de día, luego el nocturno
 
 
 def pronostico(snap, dia, desde):
@@ -409,23 +454,34 @@ def leer_datos_observatorio(ruta):
                                     if re.search(r"quebrada|huaico", h["texto"], re.I)
                                     for dep in ([h["lugar"]] if h["lugar"] and " y " not in h["lugar"]
                                                 else re.split(r",\s*|\s+y\s+", h["lugar"])) if dep})
+    adic = " ".join(d.get("adicionales") or []).lower()
     for k, lista in secciones.items():
+        # un hecho de prensa que ya está en [ALERTAS ADICIONALES] del txt (p. ej. Costa Verde) no se repite
+        lista[:] = [h for h in lista if not (h.get("localidad") and h["localidad"].lower() in adic)]
         d[k] = [(f"{h['lugar']}: " if h["lugar"] else "") + h["texto"] for h in lista]
     d["origen_observatorio"] = True
     d["p1_titulo"] = "HOY"
     d["p1"] = pronostico(snap, dia, desde)
     d["calor"] = calor_uv(snap, dia)
+    dhn = []
     for no in (snap.get("sources") or {}).get("dhn", {}).get("notices", []):
         ini, fin = a_lima(no.get("inicio")), a_lima(no.get("fin"))
         if ini and fin and ini.strftime("%Y-%m-%d") <= dia <= fin.strftime("%Y-%m-%d"):
-            d["oleaje"].insert(0, f"Litoral: aviso especial de oleaje anómalo N.° {no.get('number')} de la DHN, vigente del "
-                                  f"{ini:%d/%m} al {fin:%d/%m}.")
+            dhn.append((str(no.get("number")), ini, fin))
+    dhn.sort(key=lambda x: x[0])
+    if len(dhn) == 1:
+        n_, ini, fin = dhn[0]
+        d["oleaje"].append(f"Litoral: aviso especial de oleaje anómalo N.° {n_} de la DHN, vigente del {ini:%d/%m} al {fin:%d/%m}.")
+    elif dhn:                          # varios avisos vigentes: una sola línea
+        d["oleaje"].append(f"Litoral: avisos especiales de oleaje anómalo N.° {base._unir_y([x[0] for x in dhn])} de la DHN, "
+                           f"vigentes hasta el {max(x[2] for x in dhn):%d/%m}.")
     d["nota"] = d.get("nota") or "Se mantiene el monitoreo."
     base.sintetizar(d)
 
     print("-" * 70)
     print(f"[OK] OBSERVATORIO: datos del {capt:%d/%m %H:%M} · hechos de {desde:%d/%m %H:%M} a {hasta:%d/%m %H:%M}")
-    for k, nombre in (("lluvias", "Lluvias"), ("rios", "Ríos y quebradas"), ("huaicos", "Huaicos"), ("vias", "Vías")):
+    for k, nombre in (("lluvias", "Lluvias"), ("rios", "Ríos y quebradas"), ("huaicos", "Huaicos"), ("vias", "Vías"),
+                      ("oleaje", "Oleaje (hechos)")):
         print(f"  {nombre}: {len(d[k])}  " + " · ".join(f"{h['cuenta']} {h['t']:%d/%m %H:%M}" for h in secciones[k]))
     print("  Descartado: " + ", ".join(f"{v} {k}" for k, v in descartes.items() if v))
     qn = (snap.get("sources") or {}).get("indeci", {}).get("quebradaNotice") or {}

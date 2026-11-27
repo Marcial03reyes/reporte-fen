@@ -43,8 +43,8 @@ Persona 2: Elizabeth
 #   Si no hay casos, deja la sección vacía.  Ejemplos:
 #   Lima: 5 colaboradores con filtraciones en sus viviendas, en evaluación.
 [COLABORADORES AFECTADOS]
-Piura: 1 colaborador con el primer piso de su vivienda inundado; él y su familia están bien y se activó el apoyo económico.
-Piura: 2 colaboradores tuvieron problemas para regresar a sus viviendas anoche; ambas ya están a salvo.
+Piura: 1 colaborador con el 1.er piso de su vivienda inundado; está bien y recibe apoyo económico.
+Piura: 2 colaboradoras no pudieron volver a casa anoche; ya están a salvo.
 
 # Sedes: si pegaste el mensaje de agencias, se completa solo. Escribe aquí solo si hay una afectación.
 # Colaboradores: si llenaste [COLABORADORES AFECTADOS], se completa solo.

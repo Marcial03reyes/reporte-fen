@@ -535,8 +535,26 @@ def lista_sedes(d):
         base = "Lima" if _sin_tildes(base) == "edificios lima" else base
         cant, nv = res.get(base, (0, "ok"))
         nv_e = nivel(e_)
-        res[base] = (cant + locales_sede(e_), nv_e if orden_[nv_e] > orden_[nv] else nv)
+        locs = (d.get("agencias_locales") or {}).get(base) or []
+        res[base] = (cant + max(locales_sede(e_), len(locs)), nv_e if orden_[nv_e] > orden_[nv] else nv)
     return [(k, c, n) for k, (c, n) in res.items()]
+
+
+# Nombre completo de cada local cuando el mensaje lo nombra corto: "Piura (Libertad)" -> "Piura (Jr. Libertad)"
+NOMBRE_LOCAL = {"libertad": "Jr. Libertad", "mujica": "Av. Mujica", "yanahuara": "Yanahuara", "cayma": "Cayma"}
+
+
+def sintetizar_agencia(txt):
+    """Frases del mensaje de agencias, más cortas y claras."""
+    t = txt.strip()
+    t = re.sub(r"sin energ[ií]a el[eé]ctrica,?\s*(?:las\s+)?agencias no (?:aperturar[aá]n|abrir[aá]n)",
+               "sin energía eléctrica; agencias cerradas hoy", t, flags=re.I)
+    t = re.sub(r"\baperturaran\b", "aperturarán", t)
+    t = re.sub(r"inundaci[oó]n contenida por (?:una )?barrera", "inundación contenida con barrera", t, flags=re.I)
+    t = re.sub(r"\s+y dentro de (?:las )?oficinas sin afectaci[oó]n(?:es)?", "; oficinas sin daños", t, flags=re.I)
+    t = re.sub(r"^fin (?:de )?(?:las )?afectaciones", "afectaciones superadas", t, flags=re.I)
+    t = t.rstrip(" .") + "."
+    return t[:1].upper() + t[1:]
 
 
 CIUDADES_SEDE = ("Edificios Lima", "Lima", "Piura", "Chiclayo", "Trujillo", "Huancayo", "Arequipa", "Cusco")
@@ -566,23 +584,25 @@ def agencias_desde_resumen(d):
         ciudad = next(c for c in CIUDADES_SEDE if c.lower() == m.group(1).lower())
         ciudad = "Lima" if ciudad == "Edificios Lima" else ciudad
         local = (m.group(2) or "").strip(" ()")
-        txt = re.sub(r"\baperturaran\b", "aperturarán", txt)
-        txt = re.sub(r"(el[eé]ctrica)\s+(agencias?)\b", r"\1, \2", txt, flags=re.I)        # "eléctrica agencias" -> "eléctrica, agencias"
-        txt = re.sub(r"\s+y dentro de (?:las )?oficinas sin afectaci[oó]n(?:es)?", ", oficinas sin afectación", txt, flags=re.I)
-        txt = re.sub(r"^fin (de )?afectaciones", "afectaciones superadas", txt, flags=re.I)
+        txt = sintetizar_agencia(txt)
         txt = txt[:1].upper() + txt[1:]
         if ciudad not in por_ciudad:
             por_ciudad[ciudad] = []
             orden.append(ciudad)
-        por_ciudad[ciudad].append(f"{local}: {txt[:1].lower() + txt[1:]}" if local else txt)
+        if local:
+            d.setdefault("agencias_locales", {}).setdefault(ciudad, []).append(
+                (f"{ciudad} ({NOMBRE_LOCAL.get(_sin_tildes(local).lower(), local)})", txt))
+        else:
+            por_ciudad[ciudad].append(txt)
+    for c_, locs in (d.get("agencias_locales") or {}).items():        # ciudad con locales pero sin texto general
+        if c_ not in por_ciudad:
+            por_ciudad[c_] = ["; ".join(f"{n_}: {t_}" for n_, t_ in locs)]
+            orden.append(c_)
     for c in [x for x in SEDES_POR_DEFECTO]:
         base_c = re.sub(r"\s*\(.*\)$", "", c).replace("Edificios ", "")
         if base_c in por_ciudad:
             if base_c in orden:
-                partes = por_ciudad[base_c]
-                # primero lo que vale para toda la ciudad, luego cada local
-                partes.sort(key=lambda t: bool(re.match(r"^[A-ZÁÉÍÓÚÑ][\wáéíóúñ ]*:", t)))
-                txt = "; ".join(partes)
+                txt = "; ".join(por_ciudad[base_c])
                 d["agencias"].append((base_c, txt[:1].upper() + txt[1:]))
                 orden.remove(base_c)
         else:
@@ -600,7 +620,7 @@ def resolver_sedes(d):
     if not d["agencias"] or es_afectado(d["sedes"]):
         return d
     afectadas = [(n, e) for n, e in d["agencias"] if es_afectado(e)]
-    total = sum(locales_sede(e) for _, e in d["agencias"])
+    total = sum(c_ for _, c_, _ in lista_sedes(d))
     if not afectadas:
         d["sedes"] = f"Sin afectación en las {total} sedes revisadas." if total > 1 else \
             "Sin afectación en la sede revisada."
@@ -1682,6 +1702,17 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
             fs_chip -= 0.5
         chip(slide, lx + 0.48, y, ancho_chip, 0.36, etq, v, af, fs_chip)
         y += 0.41
+        if etq.startswith("Sedes") and d.get("agencias_locales"):     # un renglón por local: "Piura (Jr. Libertad): …"
+            filas_l = [(n_, t_) for locs in d["agencias_locales"].values() for n_, t_ in locs]
+            partes = []
+            for n_, t_ in filas_l:
+                nv_l = ("ok" if re.search(r"superad|sin (da[ñn]os|afectaci)", t_, re.I) and
+                        not re.search(r"inundaci|sin energ|cerrad", t_, re.I) else
+                        "leve" if re.search(r"contenid|controlad", t_, re.I) else nivel(t_))
+                partes.append([("●\u00a0", True, COLORES_NIVEL[nv_l][1]), (f"{n_}: ", True, P_INK), (t_, False, P_INK)])
+            alto_l = sum(contar_lineas("", f"● {n_}: {t_}", 8, (ancho_chip - 0.24) * 72) for n_, t_ in filas_l) * 0.145
+            texto(slide, lx + 0.62, y - 0.06, ancho_chip - 0.14, alto_l, partes, 8, nombre="Sedes afectadas detalle")
+            y += alto_l + 0.04
         if etq.startswith("Sedes"):                 # cuadrícula: ✓ Ciudad (n)
             sedes_l = lista_sedes(d)
             por_fila = 4
@@ -1702,7 +1733,8 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         for caso in d["colab_casos"]:
             niv = nivel(caso)
             partes.append([("●\u00a0", True, COLORES_NIVEL["afectado" if niv == "ok" else niv][1]), (caso, False, P_INK)])
-        texto(slide, lx + 0.48, y - 0.04, la - 0.48, 0.34, partes, 7, nombre="Colaboradores afectados")
+        alto_c = sum(contar_lineas("", "● " + c_, 7.5, (la - 0.58) * 72) for c_ in d["colab_casos"]) * 0.135
+        texto(slide, lx + 0.48, y - 0.04, la - 0.48, alto_c, partes, 7.5, nombre="Colaboradores afectados")
         y += 0.34
     texto(slide, lx, py + ph - 0.22, la, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
           8, P_BLUE_DK, True, nombre="Fuente mapa")
@@ -1891,6 +1923,13 @@ def construir(d, salida_pptx, borrador=False):
     es_mapa = bool(d.get("radar")) and d.get("radar_estilo") == "mapa"
     if es_mapa:                                   # panel "Impacto y exposición" con el mapa
         EXTRA_AG_TOTAL = 2.12 + (0.34 if hay_casos else 0.0) - 0.6
+        # renglones extra: detalle de locales afectados (8.5 pt) y casos de colaboradores (7.5 pt) que se parten
+        locs_ = [f"{n_}: {t_}" for v_ in (d.get("agencias_locales") or {}).values() for n_, t_ in v_]
+        EXTRA_AG_TOTAL += sum(contar_lineas("", "● " + t_, 8, 4.2 * 72) for t_ in locs_) * 0.145 + \
+            (0.04 if locs_ else 0.0)
+        if hay_casos:
+            n_co = sum(contar_lineas("", "● " + c_, 7.5, 4.5 * 72) for c_ in d["colab_casos"])
+            EXTRA_AG_TOTAL += max(0.0, n_co * 0.135 - 0.34)
     Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG_TOTAL
     # Con siniestros: la columna derecha se parte en dos tarjetas (Pronósticos arriba, Siniestros FEN abajo)
     ALTO_SIN = d.get("siniestros_alto", 1.55)

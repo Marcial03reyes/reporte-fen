@@ -129,6 +129,7 @@ def limpiar_post(texto):
     t = re.sub(r"\bque ocasion[oó] da[ñn]os", "con daños", t, flags=re.I)
     t = re.sub(r"\b(?:la )?infraestructura de transporte\b", "vías", t, flags=re.I)
     t = re.sub(r"\binfraestructura educativa\b", "colegios", t, flags=re.I)
+    t = re.sub(r"\be (v[ií]as|colegios|locales)\b", r"y \1", t)          # "viviendas e vías" -> "viviendas y vías"
     t = re.sub(r"\blocal(?:es)? p[uú]blicos?\b", "locales públicos", t, flags=re.I)
     return t
 

@@ -158,7 +158,8 @@ def casos_para_mostrar(casos):
             salida += [f"{l_}: {d_}" if l_ else d_ for l_, d_ in g]
             continue
         lugares = [l_ for l_, _ in g]
-        det = re.sub(r"^(1|un|una)\s+(colaborador\w*)\b,?", r"1 \2 en cada una,", g[0][1], flags=re.I)
+        det = re.sub(r"^(1|un|una)\s+(colaborador\w*)((?:\s+con\s+[^,;]+)?)\s*[,;]?", r"1 \2\3 en cada una;",
+                     g[0][1], flags=re.I)
         salida.append(", ".join(lugares[:-1]) + " y " + lugares[-1] + ": " + det)
     return salida
 

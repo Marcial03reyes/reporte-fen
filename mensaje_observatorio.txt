@@ -45,8 +45,8 @@ Persona 2: Elizabeth
 [COLABORADORES AFECTADOS]
 Piura: 1 colaborador con su vivienda inundada; está bien y recibe apoyo económico.
 Piura: 2 colaboradoras no pudieron volver a casa anoche; ya están a salvo.
-Chiclayo: 1 colaborador bien, bajo control y sin hospitalización.
-Lima: 1 colaborador bien, bajo control y sin hospitalización.
+Chiclayo: 1 colaborador con dengue; bien, bajo control y sin hospitalización.
+Lima: 1 colaborador con dengue; bien, bajo control y sin hospitalización.
 
 # Sedes: si pegaste el mensaje de agencias, se completa solo. Escribe aquí solo si hay una afectación.
 # Colaboradores: si llenaste [COLABORADORES AFECTADOS], se completa solo.

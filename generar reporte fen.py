@@ -550,8 +550,8 @@ def sintetizar_agencia(txt):
     t = re.sub(r"sin energ[ií]a el[eé]ctrica,?\s*(?:las\s+)?agencias no (?:aperturar[aá]n|abrir[aá]n)",
                "sin energía eléctrica; agencias cerradas hoy", t, flags=re.I)
     t = re.sub(r"\baperturaran\b", "aperturarán", t)
-    t = re.sub(r"inundaci[oó]n contenida por (?:una )?barrera", "inundación contenida con barrera", t, flags=re.I)
-    t = re.sub(r"\s+y dentro de (?:las )?oficinas sin afectaci[oó]n(?:es)?", "; oficinas sin daños", t, flags=re.I)
+    t = re.sub(r"inundaci[oó]n contenida por (?:una )?barrera", "inundación contenida", t, flags=re.I)
+    t = re.sub(r"\s+y dentro de (?:las )?oficinas sin afectaci[oó]n(?:es)?", ", sin daños", t, flags=re.I)
     t = re.sub(r"^fin (?:de )?(?:las )?afectaciones", "afectaciones superadas", t, flags=re.I)
     t = t.rstrip(" .") + "."
     return t[:1].upper() + t[1:]
@@ -1652,32 +1652,35 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         mx = px + pw - 0.08 - mw
         slide.shapes.add_picture(buf, Inches(mx), Inches(py + 0.04), Inches(mw), Inches(mh))
         # leyenda de intensidad en el mar, abajo a la izquierda del mapa
-        # Leyenda en dos filas, a la altura de "Fuente": arriba los símbolos (causa), abajo los niveles (color)
+        # Leyenda compacta en el mar, abajo a la izquierda del Perú, sin invadir la columna de texto:
+        # arriba los símbolos (causa), abajo los niveles (color), en filas de dos.
         tipos = [t for t in ("lluvias", "quebradas", "calor") if any(t in v for v in causas.values())]
-        fs_l, fila, sep = 8, 0.18, 0.08
-        y_niv = py + ph - 0.24
-        y_cau = y_niv - fila
-        x_der = mx + 0.45                               # el bloque termina sobre el mar, a la izquierda del Perú
+        fs_l, fila, sep = 7.5, 0.165, 0.1
         niveles_l = [("Rojo", INTENSIDAD["Rojo"]), ("Naranja", INTENSIDAD["Naranja"]),
                      ("Amarillo", INTENSIDAD["Amarillo"]), ("", INTENSIDAD[""])]
-        ancho_niv = sum(0.15 + ancho_pt(t_, fs_l) / 72 + sep for _, t_ in niveles_l) - sep
         causas_l = [(t, "Calor extremo" if (t == "calor" and not modo.startswith("grav")) else ETIQUETA_CAUSA[t])
                     for t in tipos]
         if conteos:
             causas_l = [("siniestro", "N.º de siniestros FEN por departamento")]
-        ancho_cau = sum(0.18 + ancho_pt(t_, fs_l) / 72 + sep for _, t_ in causas_l) - sep if causas_l else 0
-        x0 = x_der - max(ancho_niv, ancho_cau)
-        x = x0
-        for t, etq_c in causas_l:
-            icono(slide, icono_causa(t), x, y_cau + 0.02, 0.14)
-            w_ = ancho_pt(etq_c, fs_l) / 72 + 0.05
-            texto(slide, x + 0.17, y_cau, w_, fila, etq_c, fs_l, P_INK, nombre="Leyenda causa")
-            x += 0.18 + w_ - 0.05 + sep
-        x = x0
-        for nv, etq_n in niveles_l:
-            w_ = ancho_pt(etq_n, fs_l) / 72 + 0.05
-            texto(slide, x, y_niv, 0.15 + w_, fila, [[sw(nv), (etq_n, False, P_INK)]], fs_l, nombre="Leyenda nivel")
-            x += 0.15 + w_ - 0.05 + sep
+        filas_c = [causas_l[i_:i_ + 2] for i_ in range(0, len(causas_l), 2)]
+        filas_n = [niveles_l[i_:i_ + 2] for i_ in range(0, len(niveles_l), 2)]
+        x0 = mx - 0.62                                  # justo a la derecha de la columna de texto
+        y_l = py + ph - 0.2 - fila * (len(filas_c) + len(filas_n))
+        for fila_c in filas_c:
+            x = x0
+            for t, etq_c in fila_c:
+                icono(slide, icono_causa(t), x, y_l + 0.02, 0.13)
+                w_ = ancho_pt(etq_c, fs_l) / 72 + 0.05
+                texto(slide, x + 0.16, y_l, w_, fila, etq_c, fs_l, P_INK, nombre="Leyenda causa")
+                x += 0.16 + w_ + sep
+            y_l += fila
+        for fila_n in filas_n:
+            x = x0
+            for nv, etq_n in fila_n:
+                w_ = ancho_pt(etq_n, fs_l) / 72 + 0.05
+                texto(slide, x, y_l, 0.15 + w_, fila, [[sw(nv), (etq_n, False, P_INK)]], fs_l, nombre="Leyenda nivel")
+                x += 0.15 + w_ + sep
+            y_l += fila
         x_ley = x0
         mw += 0.4
     lx = px + 0.2
@@ -1710,7 +1713,8 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
                         not re.search(r"inundaci|sin energ|cerrad", t_, re.I) else
                         "leve" if re.search(r"contenid|controlad", t_, re.I) else nivel(t_))
                 partes.append([("●\u00a0", True, COLORES_NIVEL[nv_l][1]), (f"{n_}: ", True, P_INK), (t_, False, P_INK)])
-            alto_l = sum(contar_lineas("", f"● {n_}: {t_}", 8, (ancho_chip - 0.24) * 72) for n_, t_ in filas_l) * 0.145
+            alto_l = sum(contar_lineas("", f"● {n_}: {t_}", 8, int((ancho_chip - 0.24) * 72 * 0.92))
+                         for n_, t_ in filas_l) * 0.15
             texto(slide, lx + 0.62, y - 0.06, ancho_chip - 0.14, alto_l, partes, 8, nombre="Sedes afectadas detalle")
             y += alto_l + 0.04
         if etq.startswith("Sedes"):                 # cuadrícula: ✓ Ciudad (n)
@@ -1733,8 +1737,8 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
         for caso in d["colab_casos"]:
             niv = nivel(caso)
             partes.append([("●\u00a0", True, COLORES_NIVEL["afectado" if niv == "ok" else niv][1]), (caso, False, P_INK)])
-        alto_c = sum(contar_lineas("", "● " + c_, 7.5, (la - 0.58) * 72) for c_ in d["colab_casos"]) * 0.135
-        texto(slide, lx + 0.48, y - 0.04, la - 0.48, alto_c, partes, 7.5, nombre="Colaboradores afectados")
+        alto_c = sum(contar_lineas("", "● " + c_, 7, int((la - 0.58) * 72 * 0.95)) for c_ in d["colab_casos"]) * 0.13
+        texto(slide, lx + 0.48, y - 0.04, la - 0.48, alto_c, partes, 7, nombre="Colaboradores afectados")
         y += 0.34
     texto(slide, lx, py + ph - 0.22, la, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
           8, P_BLUE_DK, True, nombre="Fuente mapa")
@@ -1925,11 +1929,11 @@ def construir(d, salida_pptx, borrador=False):
         EXTRA_AG_TOTAL = 2.12 + (0.34 if hay_casos else 0.0) - 0.6
         # renglones extra: detalle de locales afectados (8.5 pt) y casos de colaboradores (7.5 pt) que se parten
         locs_ = [f"{n_}: {t_}" for v_ in (d.get("agencias_locales") or {}).values() for n_, t_ in v_]
-        EXTRA_AG_TOTAL += sum(contar_lineas("", "● " + t_, 8, 4.2 * 72) for t_ in locs_) * 0.145 + \
+        EXTRA_AG_TOTAL += sum(contar_lineas("", "● " + t_, 8, int(3.7 * 72 * 0.92)) for t_ in locs_) * 0.15 + \
             (0.04 if locs_ else 0.0)
         if hay_casos:
-            n_co = sum(contar_lineas("", "● " + c_, 7.5, 4.5 * 72) for c_ in d["colab_casos"])
-            EXTRA_AG_TOTAL += max(0.0, n_co * 0.135 - 0.34)
+            n_co = sum(contar_lineas("", "● " + c_, 7, int(3.9 * 72 * 0.95)) for c_ in d["colab_casos"])
+            EXTRA_AG_TOTAL += max(0.0, n_co * 0.13 - 0.34)
     Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG_TOTAL
     # Con siniestros: la columna derecha se parte en dos tarjetas (Pronósticos arriba, Siniestros FEN abajo)
     ALTO_SIN = d.get("siniestros_alto", 1.55)

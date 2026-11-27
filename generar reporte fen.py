@@ -103,7 +103,7 @@ def _vacio():
 SIN_AFECTACION = re.compile(r"^(sin\s+(afectaci|impacto|novedad|da[ñn]o|incidencia)|operativ|normal)", re.I)
 
 
-LEVE = re.compile(r"controlad|leve|menor|pequeñ|pequen|m[ií]nim|sin impacto en la (operaci|atenci)|"
+LEVE = re.compile(r"controlad|bajo control|sin hospitalizaci|leve|menor|pequeñ|pequen|m[ií]nim|sin impacto en la (operaci|atenci)|"
                   r"operativ|atenci[oó]n normal", re.I)
 
 
@@ -138,6 +138,29 @@ def _linea_colaborador(d, linea):
 
 NUMEROS = {"un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6,
            "siete": 7, "ocho": 8, "nueve": 9, "diez": 10}
+
+
+def casos_para_mostrar(casos):
+    """Casos con el mismo detalle en varias ciudades van en un solo renglón:
+    'Chiclayo: 1 colaborador bien…' + 'Lima: 1 colaborador bien…' -> 'Chiclayo y Lima: 1 colaborador en cada una, bien…'."""
+    grupos, orden = {}, []
+    for c in casos:
+        lugar, sep, det = c.partition(":")
+        clave = det.strip().lower() if sep and len(lugar) <= 40 else c
+        if clave not in grupos:
+            grupos[clave] = []
+            orden.append(clave)
+        grupos[clave].append((lugar.strip(), det.strip()) if sep and len(lugar) <= 40 else ("", c))
+    salida = []
+    for k in orden:
+        g = grupos[k]
+        if len(g) == 1 or not g[0][0]:
+            salida += [f"{l_}: {d_}" if l_ else d_ for l_, d_ in g]
+            continue
+        lugares = [l_ for l_, _ in g]
+        det = re.sub(r"^(1|un|una)\s+(colaborador\w*)\b,?", r"1 \2 en cada una,", g[0][1], flags=re.I)
+        salida.append(", ".join(lugares[:-1]) + " y " + lugares[-1] + ": " + det)
+    return salida
 
 
 def resolver_colaboradores(d):
@@ -1734,10 +1757,11 @@ def dibujar_panel_mapa(slide, d, rz, impactos, px, py, pw, ph):
             y += -(-len(sedes_l) // por_fila) * 0.2 + 0.04
     if d.get("colab_casos"):
         partes = []
-        for caso in d["colab_casos"]:
+        for caso in casos_para_mostrar(d["colab_casos"]):
             niv = nivel(caso)
             partes.append([("●\u00a0", True, COLORES_NIVEL["afectado" if niv == "ok" else niv][1]), (caso, False, P_INK)])
-        alto_c = sum(contar_lineas("", "● " + c_, 7, int((la - 0.58) * 72 * 0.95)) for c_ in d["colab_casos"]) * 0.13
+        alto_c = sum(contar_lineas("", "● " + c_, 7, int((la - 0.58) * 72 * 0.95))
+                     for c_ in casos_para_mostrar(d["colab_casos"])) * 0.13
         texto(slide, lx + 0.48, y - 0.04, la - 0.48, alto_c, partes, 7, nombre="Colaboradores afectados")
         y += 0.34
     texto(slide, lx, py + ph - 0.22, la, 0.16, "Fuente: Observatorio Pacífico / Torre de Control",
@@ -1932,7 +1956,7 @@ def construir(d, salida_pptx, borrador=False):
         EXTRA_AG_TOTAL += sum(contar_lineas("", "● " + t_, 8, int(3.7 * 72 * 0.92)) for t_ in locs_) * 0.15 + \
             (0.04 if locs_ else 0.0)
         if hay_casos:
-            n_co = sum(contar_lineas("", "● " + c_, 7, int(3.9 * 72 * 0.95)) for c_ in d["colab_casos"])
+            n_co = sum(contar_lineas("", "● " + c_, 7, int(3.9 * 72 * 0.95)) for c_ in casos_para_mostrar(d["colab_casos"]))
             EXTRA_AG_TOTAL += max(0.0, n_co * 0.13 - 0.34)
     Y1_NORMAL, Y1_COMPACTO = 5.42, 6.08 - EXTRA_AG_TOTAL
     # Con siniestros: la columna derecha se parte en dos tarjetas (Pronósticos arriba, Siniestros FEN abajo)
@@ -2029,15 +2053,21 @@ def construir(d, salida_pptx, borrador=False):
         # primero se recortan los hechos (la línea más antigua de la sección más larga); el pronóstico al final
         # orden: hechos más antiguos -> pronóstico ("Otros avisos" primero) -> avisos de calor/oleaje al final
         # 0) lo que ya se ve en el mapa o es secundario en el pronóstico: "Otros avisos" y los niveles de lluvia
+        # ¿Qué columna se desborda? Solo se recorta en esa (quitar pronóstico no ayuda si la que no entra es la izquierda)
+        (_, ok_izq, _), (_, ok_der, _) = fs_izq(LW, Y1_COMPACTO), fs_der(RW)
+        en_der = {k_ for k_ in ("lluvias", "vias", "rios", "huaicos", "calor", "oleaje", "p1", "medidas",
+                                "recomendaciones") if d.get(k_) and any(b_[-1] is d[k_] for b_ in bloques)} | {"p1"}
+        def permitido(k_):
+            return (not ok_der and k_ in en_der) or (not ok_izq and k_ not in en_der) or (ok_izq and ok_der)
         p1 = d.get("p1") or []
         sobra = next((i for pre in ("Otros avisos", "Lluvias:") for i, x in enumerate(p1) if x.startswith(pre)), None)
-        if sobra is not None and len(p1) > 1:
+        if sobra is not None and len(p1) > 1 and permitido("p1"):
             quitado = p1.pop(sobra)
             print(f"  Aviso: no entraba todo en la diapositiva; se omitió de «p1»: {quitado[:70]}…")
             return construir(d, salida_pptx, borrador)
-        largas = [k for k in ("lluvias", "vias", "rios", "huaicos") if len(d.get(k) or []) > 1] \
-            or [k for k in ("p1", "medidas", "recomendaciones") if len(d.get(k) or []) > 1] \
-            or [k for k in ("oleaje", "calor") if len(d.get(k) or []) > 1]
+        largas = [k for k in ("lluvias", "vias", "rios", "huaicos") if len(d.get(k) or []) > 1 and permitido(k)] \
+            or [k for k in ("p1", "medidas", "recomendaciones") if len(d.get(k) or []) > 1 and permitido(k)] \
+            or [k for k in ("oleaje", "calor") if len(d.get(k) or []) > 1 and permitido(k)]
         if largas:
             k = max(largas, key=lambda k_: (len(d[k_]), sum(len(x) for x in d[k_])))
             # en el pronóstico, lo último que se quita es Costa/Sierra/Quebradas

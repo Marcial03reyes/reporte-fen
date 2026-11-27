@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-VERSION_OBS = "2026-11-26 (Observatorio · prensa verificada y calor nocturno)"
+VERSION_OBS = "2026-11-27 (Observatorio · lluvias con mm primero, vías cortadas por inundación)"
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 LIMA = timezone(timedelta(hours=-5))
 
@@ -44,7 +44,7 @@ NO_HECHO = re.compile(r"nota de prensa|prep[aá]rate|recomienda|recomendaciones|
 PRONOSTICO = re.compile(r"^\s*se prev[eé]n?|persistir[aá]n|contin[uú]an? las lluvias|\(\d{1,2}:\d{2} a \d{1,2}:\d{2} ?h\)|"
                         r"toma tus precauciones|aviso (de corto plazo|n[°º.]|especial)|contin[uú]ar[aá]n|se esperan?\b|"
                         r"pr[oó]ximas \d* ?horas|#pron[oó]stico|#aviso\b|se estima|podr[ií]an? alcanzar", re.I)
-OBSERVADO = re.compile(r"\b(registr[oóa]\w*|alcanz[oó]|super[oó]|superando|ocurri[oó]|ocurrieron|activ[oó]|"
+OBSERVADO = re.compile(r"\b(registr[oóa]\w*|acumul[oó]|acumularon|alcanz[oó]|super[oó]|superando|ocurri[oó]|ocurrieron|activ[oó]|"
                        r"report[oó]|se produjo|provoc[oó]|desbord)", re.I)
 TEMPERATURA = re.compile(r"°\s*c|temperatura|calor|radiaci[oó]n", re.I)
 
@@ -117,6 +117,19 @@ def limpiar_post(texto):
     t = re.sub(r"\s+", " ", t).strip(" |:-–")
     t = re.sub(r"\s+([,.;:])", r"\1", t)                                         # "Nacional , retiró" -> "Nacional, retiró"
     t = re.sub(r"^(\|\s*)+", "", t).strip()
+    # "En entrevista con RPP Noticias, la subdirectora del SENAMHI, Rosario Julca, informó que diversas…" -> "Diversas…"
+    t = re.sub(r"^en (?:entrevista|declaraciones) (?:con|a) [^,]+,\s*(?:[^,]{0,60},\s*){0,3}"
+               r"(?:inform[oó]|señal[oó]|indic[oó]|precis[oó]|explic[oó]|advirti[oó]) que\s+", "", t, flags=re.I)
+    # redacción del COEN, más corta
+    t = re.sub(r"\b(?:en )?el distrito, provincia y departamento de ([A-ZÁÉÍÓÚÑ]\w+)", r"en la ciudad de \1", t)
+    t = re.sub(r"\bdel distrito y provincia de ([A-ZÁÉÍÓÚÑ]\w+)", r"de \1", t)
+    t = re.sub(r"\bdistrito y provincia de ([A-ZÁÉÍÓÚÑ]\w+)", r"\1", t)
+    t = re.sub(r"\ba consecuencia de (?:las )?lluvias intensas", "por lluvias intensas", t, flags=re.I)
+    t = re.sub(r"\bse produjo una inundaci[oó]n que ocasion[oó] da[ñn]os", "una inundación causó daños", t, flags=re.I)
+    t = re.sub(r"\bque ocasion[oó] da[ñn]os", "con daños", t, flags=re.I)
+    t = re.sub(r"\b(?:la )?infraestructura de transporte\b", "vías", t, flags=re.I)
+    t = re.sub(r"\binfraestructura educativa\b", "colegios", t, flags=re.I)
+    t = re.sub(r"\blocal(?:es)? p[uú]blicos?\b", "locales públicos", t, flags=re.I)
     return t
 
 
@@ -142,7 +155,7 @@ def quitar_previsiones(texto):
     """Dentro de un hecho, quita las oraciones de pronóstico ('Se prevé que las lluvias continúen…')."""
     frases = re.split(r"(?<=[.!])\s+", texto)
     quedan = [f for f in frases if not re.match(r"^(se prev[eé]n?|se espera|se esperan|podr[ií]a|persistir[aá]n|"
-                                                r"al[eé]jate|sigue las|mantente|toma tus|ev[ií]ta)", f.strip(), re.I)]
+                                                r"al[eé]jate|sigue las|mantente|toma tus|ev[ií]ta|identifica|prepara)", f.strip(), re.I)]
     return " ".join(quedan) if quedan else texto
 
 
@@ -157,6 +170,27 @@ def etiqueta(texto, deps):
 
 
 # ---------------------------------------------------------------- extracción del snapshot
+def zona_de(texto):
+    """'distrito de Querecotillo, provincia de Sullana' -> 'Querecotillo (Sullana)'; 'ciudad de Piura' -> 'la ciudad de Piura'."""
+    m = re.search(r"distrito (?:de )?([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)"
+                  r"(?:,? (?:en la )?provincia (?:de )?([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+))?", texto)
+    if m:
+        return m.group(1) + (f" ({m.group(2)})" if m.group(2) and m.group(2) != m.group(1) else "")
+    m = re.search(r"ciudad de ([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)", texto)
+    if m:
+        return f"la ciudad de {m.group(1)}"
+    m = re.search(r"sectores? [^.;]*?,? de ([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)", texto)
+    return m.group(1) if m else ""
+
+
+def mismo_evento(a, b):
+    """Dos publicaciones del mismo lugar que nombran los mismos sitios (p. ej. el COEN repite un reporte)."""
+    nombres = lambda t: {w for w in re.findall(r"\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,}\b|\b\d+ de [A-Z]\w+", t)} - \
+        {"Piura", "Lima", "Tumbes", "Durante", "Desde", "Tránsito", "Inundación", "Personal", "Esta", "Asimismo"}
+    return a["lugar"] == b["lugar"] and len(nombres(a.get("cuerpo") or a["texto"]) &
+                                            nombres(b.get("cuerpo") or b["texto"])) >= 2
+
+
 def hechos_oficiales(snap, desde, hasta):
     """Publicaciones institucionales en X dentro de la ventana, clasificadas por sección."""
     secciones = {k: [] for k, _ in SECCION_DE}
@@ -217,7 +251,7 @@ def hechos_oficiales(snap, desde, hasta):
             if clave_v and clave_v.rstrip(".") not in texto_final:
                 texto_final = recortar(cuerpo, 150).rstrip(".…") + ". " + recortar(clave_v, 120)
         secciones[seccion].append({"t": t, "cuenta": CUENTAS_OFICIALES[cuenta], "lugar": lugar, "deps": deps,
-                                   "texto": texto_final})
+                                   "texto": texto_final, "cuerpo": cuerpo})
     hechos_prensa(snap, desde, hasta, secciones, descartes)
     # Una quebrada o huaico que corta una vía también va (corto) a Vías restringidas
     for k in ("rios", "huaicos"):
@@ -229,16 +263,31 @@ def hechos_oficiales(snap, desde, hasta):
                           "cerrad": "cerrado"}[m.group(1).lower()]
                 lugar_v = m.group(2).strip()
                 art = "la" if re.match(r"v[ií]a|carretera", lugar_v, re.I) else "el"
-                secciones["vias"].append({**h, "texto": f"Tránsito {estado} en {art} {lugar_v} "
-                                                        f"({'por quebradas' if k == 'rios' else 'por deslizamiento' if re.search(r'desliz', h['texto'], re.I) else 'por huaico'})."})
+                causa = ("por quebradas" if k == "rios" else
+                         "por deslizamiento" if re.search(r"desliz", h["texto"], re.I) else "por huaico")
+                secciones["vias"].append({**h, "texto": f"Tránsito {estado} en {art} {lugar_v} ({causa})."})
+                continue
+            # "El tránsito vehicular se encuentra interrumpido" sin nombrar la vía: se usa la zona del hecho
+            zona = zona_de(h.get("cuerpo") or h["texto"])
+            tr = re.search(r"tr[aá]nsito(?: vehicular)? (?:se encuentra |est[aá] |qued[oó] )?"
+                           r"(interrumpido|restringido|bloqueado|cerrado)", h.get("cuerpo") or "", re.I)
+            if tr and zona:
+                causa = ("por activación de quebrada" if re.search(r"quebrada", h["texto"], re.I) else
+                         "por inundación" if re.search(r"inundaci", h["texto"], re.I) else
+                         "por deslizamiento" if re.search(r"desliz", h["texto"], re.I) else "por huaico")
+                secciones["vias"].append({**h, "texto": f"Tránsito {tr.group(1).lower()} en {zona}, {causa}."})
     # Lluvias: SENAMHI publica varios balances al día; queda el más reciente de cada departamento
     # (una publicación más antigua se descarta si todos sus departamentos ya salen en una más nueva).
     # Ríos, huaicos y vías: cada publicación es un hecho distinto; solo se quitan textos repetidos.
     for k, lista in secciones.items():
-        lista.sort(key=lambda h: h["t"], reverse=True)
+        # Lluvias: primero las que traen datos medidos (mm); dentro de eso, la más reciente
+        lista.sort(key=lambda h: ((k == "lluvias" and bool(re.search(r"\d\s*mm\b", h["texto"]))), h["t"]),
+                   reverse=True)
         cubiertos, textos, unicos = set(), set(), []
         for h in lista:
             if k == "lluvias" and h["deps"] <= cubiertos:
+                continue
+            if k != "lluvias" and any(mismo_evento(h, u) for u in unicos):
                 continue
             clave_txt = re.sub(r"\W+", "", h["texto"].lower())[:120]
             if clave_txt in textos:

@@ -13,8 +13,8 @@
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
-📅Fecha: 24/11/2026
-🕕Corte: 08:44 horas
+📅 Fecha: 25/11/2026
+🕗 Corte: 08:30 horas
 
 * Piura: Sin afectaciones reportadas ambos locales.
 * Chiclayo: Sin afectaciones reportadas.
@@ -38,11 +38,9 @@
 # Alertas adicionales (opcional): información que llega por WhatsApp y que el Observatorio no trae.
 #   Una por línea, con el formato  Lugar: detalle  (corto). El script la ubica sola en su sección
 #   (oleaje, vías, huaicos, ríos, calor o lluvias). Si no hay, deja la sección vacía.
-[ALERTAS ADICIONALES]
-Lima (Costa Verde): tramos con restricción vehicular por oleaje anómalo; la Municipalidad de Lima atiende cinco puntos (playas Makaha, Redondo 1, Pampilla, Tres Picos y Punta Roquitas), retira dos postes caídos y delimita perímetros de seguridad.
 
 [CONFIRMACIONES]
-NUMERO: 015
+NUMERO: 016
 Persona 1: Paola
 Persona 2: Elizabeth
 

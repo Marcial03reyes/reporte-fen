@@ -52,7 +52,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 PILL = RGBColor(0xE6, 0xF4, 0xF6)
 RED = RGBColor(0xC4, 0x12, 0x3F)
 
-VERSION = "2026-11-26 (recorte: primero lo que ya está en el mapa)"
+VERSION = "2026-11-27 (agencias: mensaje solo con Resumen)"
 
 FONT_XB = "Nunito ExtraBold"   # títulos con más peso (recursos/fuentes/Nunito-ExtraBold.ttf)
 XB_OK = platform.system() != "Windows"   # en Windows se confirma en instalar_fuentes()
@@ -144,7 +144,7 @@ def resolver_colaboradores(d):
     """Si hay casos en [COLABORADORES AFECTADOS], arma el texto de 'Colaboradores' y su nivel."""
     if not d["colab_casos"]:
         return d
-    resumen, total, todos_contados = [], 0, True
+    resumen, total, todos_contados = {}, 0, True          # lugar -> n.º de colaboradores (se suman)
     niveles = []
     for caso in d["colab_casos"]:
         lugar, sep, detalle = caso.partition(":")
@@ -158,10 +158,17 @@ def resolver_colaboradores(d):
         else:
             total += n
         if lugar:
-            resumen.append(f"{lugar.strip()} ({n})" if n else lugar.strip())
+            lg = lugar.strip()
+            resumen[lg] = (resumen.get(lg) or 0) + (n or 0)
         niv = nivel(detalle)
         niveles.append("afectado" if niv == "ok" else niv)
     d["colab_nivel"] = "afectado" if "afectado" in niveles else "leve"
+    if todos_contados and total and len(resumen) == 1:      # un solo lugar: "3 en Piura."
+        lg = next(iter(resumen))
+        d["colab"] = (f"{total} en {lg}." if total > 1 else f"1 colaborador en {lg}.")
+        d["colab_nivel"] = "afectado" if "afectado" in niveles else "leve"
+        return d
+    resumen = [f"{k} ({v})" if v else k for k, v in resumen.items()]
     lugares = ", ".join(resumen[:-1]) + " y " + resumen[-1] if len(resumen) > 1 else (resumen[0] if resumen else "")
     if todos_contados and total:
         d["colab"] = (f"{total} en total" if total > 1 else "1 colaborador") + (f": {lugares}." if lugares else ".")
@@ -532,9 +539,64 @@ def lista_sedes(d):
     return [(k, c, n) for k, (c, n) in res.items()]
 
 
+CIUDADES_SEDE = ("Edificios Lima", "Lima", "Piura", "Chiclayo", "Trujillo", "Huancayo", "Arequipa", "Cusco")
+
+
+def agencias_desde_resumen(d):
+    """Mensaje de agencias que solo trae 'Resumen:' (sin una línea por sede), p. ej.
+    'Lima Sin afectaciones reportadas, provincia Piura, sin energía eléctrica agencias no aperturaran,
+     Piura (Libertad) inundación contenida…, Piura (Mujica) fin afectaciones.'
+    Se parte el texto en cada ciudad con sede; los locales de una misma ciudad van juntos en una línea.
+    Las sedes que el resumen no menciona se toman sin afectación (el mensaje solo nombra las novedades)."""
+    res = d.get("ag_resumen") or ""
+    if d["agencias"] or not res:
+        return d
+    rx = re.compile(r"\b(" + "|".join(CIUDADES_SEDE) + r")\b(\s*\([^)]*\))?", re.I)
+    marcas = list(rx.finditer(res))
+    if not marcas:
+        return d
+    por_ciudad, orden = {}, []
+    for i, m in enumerate(marcas):
+        fin = marcas[i + 1].start() if i + 1 < len(marcas) else len(res)
+        txt = res[m.end():fin]
+        txt = re.sub(r"[,;\s]*(?:y\s+)?(?:en\s+)?(?:la\s+)?provincias?\s*$", "", txt, flags=re.I)   # "…, provincia" + Piura
+        txt = txt.strip(" ,;:.-–")
+        if not txt:
+            continue
+        ciudad = next(c for c in CIUDADES_SEDE if c.lower() == m.group(1).lower())
+        ciudad = "Lima" if ciudad == "Edificios Lima" else ciudad
+        local = (m.group(2) or "").strip(" ()")
+        txt = re.sub(r"\baperturaran\b", "aperturarán", txt)
+        txt = re.sub(r"(el[eé]ctrica)\s+(agencias?)\b", r"\1, \2", txt, flags=re.I)        # "eléctrica agencias" -> "eléctrica, agencias"
+        txt = re.sub(r"\s+y dentro de (?:las )?oficinas sin afectaci[oó]n(?:es)?", ", oficinas sin afectación", txt, flags=re.I)
+        txt = re.sub(r"^fin (de )?afectaciones", "afectaciones superadas", txt, flags=re.I)
+        txt = txt[:1].upper() + txt[1:]
+        if ciudad not in por_ciudad:
+            por_ciudad[ciudad] = []
+            orden.append(ciudad)
+        por_ciudad[ciudad].append(f"{local}: {txt[:1].lower() + txt[1:]}" if local else txt)
+    for c in [x for x in SEDES_POR_DEFECTO]:
+        base_c = re.sub(r"\s*\(.*\)$", "", c).replace("Edificios ", "")
+        if base_c in por_ciudad:
+            if base_c in orden:
+                partes = por_ciudad[base_c]
+                # primero lo que vale para toda la ciudad, luego cada local
+                partes.sort(key=lambda t: bool(re.match(r"^[A-ZÁÉÍÓÚÑ][\wáéíóúñ ]*:", t)))
+                txt = "; ".join(partes)
+                d["agencias"].append((base_c, txt[:1].upper() + txt[1:]))
+                orden.remove(base_c)
+        else:
+            d["agencias"].append((c, "Sin afectaciones reportadas."))
+    print("  Mensaje de agencias solo con 'Resumen': " +
+          "; ".join(f"{n} → {e[:50]}" for n, e in d["agencias"] if es_afectado(e)) +
+          " (las sedes no mencionadas se toman sin afectación).")
+    return d
+
+
 def resolver_sedes(d):
     """Si se pegó el mensaje de agencias de Pacífico, el estado de 'Sedes' sale de ahí.
     Lo que escribas a mano en 'Sedes:' manda solo si describe una afectación."""
+    agencias_desde_resumen(d)
     if not d["agencias"] or es_afectado(d["sedes"]):
         return d
     afectadas = [(n, e) for n, e in d["agencias"] if es_afectado(e)]

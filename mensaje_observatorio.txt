@@ -13,17 +13,12 @@
 # ============================================================
 
 *🏢 IMPACTO FEN – INFRAESTRUCTURA AGENCIAS EDIFICIOS PACIFICO*
-📅 Fecha: 25/11/2026
-🕗 Corte: 08:30 horas
+📅*Fecha: 27/11/2026*
+🕕*Corte: 09:25 horas*
 
-* Piura: Sin afectaciones reportadas ambos locales.
-* Chiclayo: Sin afectaciones reportadas.
-* Trujillo: Sin afectaciones reportadas.
-* Huancayo: Sin afectaciones reportadas.
-* Arequipa (Yanahuara): Sin afectaciones reportadas.
-* Arequipa (Cayma): Sin afectaciones reportadas.
-* Cusco: Sin afectaciones
-* Edificios Lima: Sin afectaciones reportadas
+Resumen: Lima Sin afectaciones reportadas, provincia Piura, sin energía eléctrica agencias no aperturaran, Piura (Libertad) inundación contenida por barrera y dentro de oficinas sin afectaciones, Piura (Mujica) fin afectaciones.
+
+Saludos,
 
 # ============================================================
 #  2) (Opcional) Si el Observatorio no trae las zonas del aviso de quebradas, puedes pegar aquí la lista
@@ -48,6 +43,8 @@ Persona 2: Elizabeth
 #   Si no hay casos, deja la sección vacía.  Ejemplos:
 #   Lima: 5 colaboradores con filtraciones en sus viviendas, en evaluación.
 [COLABORADORES AFECTADOS]
+Piura: 1 colaborador con el primer piso de su vivienda inundado; él y su familia están bien y se activó el apoyo económico.
+Piura: 2 colaboradores tuvieron problemas para regresar a sus viviendas anoche; ambas ya están a salvo.
 
 # Sedes: si pegaste el mensaje de agencias, se completa solo. Escribe aquí solo si hay una afectación.
 # Colaboradores: si llenaste [COLABORADORES AFECTADOS], se completa solo.
